@@ -19,6 +19,7 @@ from banco_agil.guardrails.judge import ModelJudge
 from banco_agil.llm import build_chat_model
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.observability import build_callbacks
+from banco_agil.seed import bootstrap
 from banco_agil.storage import (
     CustomerRepository,
     LimitRequestRepository,
@@ -136,6 +137,7 @@ def create_service(
     settings = settings or get_settings()
     data_dir = data_dir or default_data_dir()
     database = database or data_dir / "runtime" / "conversations.sqlite"
+    bootstrap(data_dir)
     customers = CustomerRepository(data_dir / "clientes.csv")
     judge = ModelJudge(build_chat_model(settings, request_timeout=JUDGE_TIMEOUT_SECONDS))
     graph = build_graph(

@@ -1,10 +1,10 @@
-import shutil
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from banco_agil.seed import bootstrap
 from banco_agil.storage import (
     CustomerRepository,
     LimitRequest,
@@ -14,13 +14,10 @@ from banco_agil.storage import (
 )
 from banco_agil.storage.csv_store import write_rows_atomic
 
-DATA = Path(__file__).parent.parent / "data"
-
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
-    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
-        shutil.copy(DATA / name, tmp_path / name)
+    bootstrap(tmp_path)
     return tmp_path
 
 

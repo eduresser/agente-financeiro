@@ -1,5 +1,4 @@
 import logging
-import shutil
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -12,11 +11,11 @@ from banco_agil.exchange import Quote
 from banco_agil.graph.builder import build_graph
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.observability import REDACTED, build_callbacks, redact
+from banco_agil.seed import bootstrap
 from banco_agil.service import FRIENDLY_ERROR, ChatService, open_checkpointer
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
-DATA = Path(__file__).parent.parent / "data"
 NOW = datetime(2026, 11, 16, 12, 0, 0)
 ANA = "11144477735"
 
@@ -28,8 +27,7 @@ class StubExchange:
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
-    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
-        shutil.copy(DATA / name, tmp_path / name)
+    bootstrap(tmp_path)
     return tmp_path
 
 

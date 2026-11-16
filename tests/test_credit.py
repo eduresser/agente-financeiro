@@ -1,6 +1,5 @@
 import csv
 import json
-import shutil
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -8,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from banco_agil.domain.credit_rules import format_brl, parse_amount
+from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from banco_agil.tools.credit_tools import UNAVAILABLE, CreditService, build_credit_tools
 
-DATA = Path(__file__).parent.parent / "data"
 ANA = "11144477735"
 BRUNO = "52998224725"
 NOW = datetime(2026, 11, 16, 9, 0, 0)
@@ -19,8 +18,7 @@ NOW = datetime(2026, 11, 16, 9, 0, 0)
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
-    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
-        shutil.copy(DATA / name, tmp_path / name)
+    bootstrap(tmp_path)
     return tmp_path
 
 

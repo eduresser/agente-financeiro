@@ -1,22 +1,21 @@
 import json
-import shutil
 from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from banco_agil.graph.interview_agent import make_interview_node
+from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository
 from banco_agil.tools.interview_tools import InterviewSession, build_interview_tools
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
-DATA = Path(__file__).parent.parent / "data"
 ANA = "11144477735"
 
 
 @pytest.fixture
 def customers_path(tmp_path: Path) -> Path:
-    shutil.copy(DATA / "clientes.csv", tmp_path / "clientes.csv")
+    bootstrap(tmp_path)
     return tmp_path / "clientes.csv"
 
 

@@ -1,4 +1,3 @@
-import shutil
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -8,19 +7,18 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from banco_agil.graph.credit_agent import make_credit_node
 from banco_agil.graph.state import GraphState
+from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from banco_agil.tools.credit_tools import CreditService
 from banco_agil.tools.interview_tools import InterviewSession
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
-DATA = Path(__file__).parent.parent / "data"
 BRUNO = "52998224725"
 
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
-    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
-        shutil.copy(DATA / name, tmp_path / name)
+    bootstrap(tmp_path)
     return tmp_path
 
 

@@ -1,19 +1,18 @@
-import shutil
 from pathlib import Path
 
 import pytest
 
 from banco_agil.guardrails import GuardContext, LocalGuardrail, other_customers_patterns
+from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository
 
-DATA = Path(__file__).parent.parent / "data"
 ANA = "11144477735"
 CONTEXT = GuardContext(customer_cpf=ANA, thread_id="t-1")
 
 
 @pytest.fixture
 def guard(tmp_path: Path) -> LocalGuardrail:
-    shutil.copy(DATA / "clientes.csv", tmp_path / "clientes.csv")
+    bootstrap(tmp_path)
     return LocalGuardrail(
         protected=other_customers_patterns(CustomerRepository(tmp_path / "clientes.csv"))
     )

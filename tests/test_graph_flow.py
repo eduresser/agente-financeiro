@@ -1,4 +1,3 @@
-import shutil
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -17,10 +16,10 @@ from banco_agil.guardrails import (
     LocalGuardrail,
     other_customers_patterns,
 )
+from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
-DATA = Path(__file__).parent.parent / "data"
 NOW = datetime(2026, 11, 16, 12, 0, 0)
 CONFIG = {"configurable": {"thread_id": "flow-1"}}
 FORBIDDEN_WORDS = ("transfer", "agente", "especialista", "setor")
@@ -87,8 +86,7 @@ class Harness:
 
 @pytest.fixture
 def data_dir(tmp_path: Path) -> Path:
-    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
-        shutil.copy(DATA / name, tmp_path / name)
+    bootstrap(tmp_path)
     return tmp_path
 
 

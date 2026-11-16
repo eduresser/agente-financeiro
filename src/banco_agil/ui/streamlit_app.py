@@ -4,11 +4,15 @@ import streamlit as st
 
 from banco_agil.config import ConfigError
 from banco_agil.service import ChatService, create_service
+from banco_agil.storage import StorageError
 
 TITLE = "Banco Ágil"
 INPUT_PLACEHOLDER = "Digite sua mensagem"
 ENDED_NOTICE = "Atendimento encerrado."
 NEW_CONVERSATION = "Nova conversa"
+DATA_ERROR = (
+    "Não foi possível preparar os dados do atendimento. Verifique as permissões da pasta de dados."
+)
 
 
 @st.cache_resource
@@ -55,6 +59,9 @@ def main() -> None:
         service = get_service()
     except ConfigError as exc:
         st.error(str(exc))
+        st.stop()
+    except StorageError:
+        st.error(DATA_ERROR)
         st.stop()
     render(service)
 
