@@ -1,0 +1,149 @@
+import logging
+import shutil
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from banco_agil.config import Settings
+from banco_agil.exchange import Quote
+from banco_agil.graph.builder import build_graph
+from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
+from banco_agil.observability import REDACTED, build_callbacks, redact
+from banco_agil.service import FRIENDLY_ERROR, ChatService, open_checkpointer
+from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
+from tests.fakes import ScriptedChatModel, ai, ai_tool_call
+
+DATA = Path(__file__).parent.parent / "data"
+NOW = datetime(2026, 11, 16, 12, 0, 0)
+ANA = "11144477735"
+
+
+class StubExchange:
+    def get_rate(self, currency: str | None) -> Quote:
+        return Quote("USD", "Dólar Americano", Decimal("5.43"), NOW)
+
+
+@pytest.fixture
+def data_dir(tmp_path: Path) -> Path:
+    for name in ("clientes.csv", "score_limite.csv", "solicitacoes_aumento_limite.csv"):
+        shutil.copy(DATA / name, tmp_path / name)
+    return tmp_path
+
+
+def make_service(data_dir: Path, script: list[Any], database: Path | None = None) -> ChatService:
+    customers = CustomerRepository(data_dir / "clientes.csv")
+    graph = build_graph(
+        model=ScriptedChatModel(script=script),
+        customers=customers,
+        bands=ScoreLimitRepository(data_dir / "score_limite.csv"),
+        requests=LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv"),
+        exchange=StubExchange(),
+        guardrail=LocalGuardrail(protected=other_customers_patterns(customers)),
+        checkpointer=open_checkpointer(database or data_dir / "chat.sqlite"),
+        clock=lambda: NOW,
+    )
+    return ChatService(graph)
+
+
+def login(service: ChatService, thread: str) -> None:
+    service.send(thread, ANA)
+    reply = service.send(thread, "17/05/1990")
+    assert "Autenticação concluída" in reply.text
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [RuntimeError("quota exceeded"), TimeoutError("model too slow"), ValueError("bad payload")],
+)
+def test_model_failure_gives_friendly_reply_and_keeps_previous_state(
+    data_dir: Path, failure: Exception, caplog: pytest.LogCaptureFixture
+) -> None:
+    service = make_service(
+        data_dir,
+        [
+            ai('{"topic": "credit"}'),
+            failure,
+            ai("Seu limite é R$ 5.000,00."),
+        ],
+    )
+    login(service, "t1")
+    history_before = service.history("t1")
+
+    with caplog.at_level(logging.ERROR):
+        failed = service.send("t1", "meu limite com cpf 111.444.777-35")
+    assert failed.text == FRIENDLY_ERROR
+    assert failed.failed is True
+    assert service.history("t1") == history_before
+    assert "thread=t1" in caplog.text
+    assert type(failure).__name__ in caplog.text
+    assert "111.444.777-35" not in caplog.text and "meu limite" not in caplog.text
+
+    recovered = service.send("t1", "meu limite")
+    assert recovered.text == "Seu limite é R$ 5.000,00."
+    user_messages = [text for role, text in service.history("t1") if role == "user"]
+    assert user_messages.count("meu limite") == 1
+
+
+def test_unexpected_exceptions_never_reach_the_interface(data_dir: Path) -> None:
+    (data_dir / "clientes.csv").unlink()
+    service = make_service(data_dir, [])
+    service.send("t1", ANA)
+    reply = service.send("t1", "17/05/1990")
+    assert reply.text == FRIENDLY_ERROR
+    assert reply.failed is True
+
+
+def test_conversation_survives_a_restart_and_threads_are_isolated(data_dir: Path) -> None:
+    database = data_dir / "persist.sqlite"
+    first = make_service(data_dir, [], database)
+    login(first, "thread-a")
+
+    second = make_service(
+        data_dir,
+        [
+            ai('{"topic": "credit"}'),
+            ai_tool_call("get_credit_limit", {}),
+            ai("Seu limite é R$ 5.000,00."),
+        ],
+        database,
+    )
+    assert second.send("thread-a", "qual meu limite?").text == "Seu limite é R$ 5.000,00."
+    other = second.send("thread-b", "qual meu limite?")
+    assert "CPF" in other.text
+    assert "5.000" not in other.text
+
+
+def test_observability_is_off_without_keys_and_conversation_still_works(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
+        monkeypatch.delenv(name, raising=False)
+    settings = Settings(chat_model="x/y", chat_model_api_key="k-12345678", _env_file=None)  # type: ignore[call-arg]
+    assert build_callbacks(settings) == []
+    service = make_service(data_dir, [])
+    with caplog.at_level(logging.WARNING):
+        assert "CPF" in service.send("t1", "olá").text
+    assert "observability" not in caplog.text.lower()
+
+
+def test_trace_redaction_hides_customer_text_and_masks_cpf() -> None:
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    payload = {
+        "messages": [
+            HumanMessage(content="meu cpf é 111.444.777-35"),
+            AIMessage(content="CPF 11144477735 ok"),
+        ],
+        "raw": [
+            {"role": "user", "content": "senha 123"},
+            {"role": "assistant", "content": "CPF 111.444.777-35"},
+        ],
+    }
+    redacted = redact(payload)
+    assert redacted["messages"][0].content == REDACTED
+    assert redacted["messages"][1].content == "CPF ***.444.777-** ok"
+    assert redacted["raw"][0]["content"] == REDACTED
+    assert redacted["raw"][1]["content"] == "CPF ***.444.777-**"
