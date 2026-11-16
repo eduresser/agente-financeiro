@@ -18,3 +18,4 @@ class GraphState(TypedDict, total=False):
     pending_limit: Decimal | None
     interview: dict[str, object]
     blocked_streak: int
+    blocked_input: bool
