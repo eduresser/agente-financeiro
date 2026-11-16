@@ -6,5 +6,9 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data:z
+      - conversations:/app/data/runtime
     restart: unless-stopped
+
+volumes:
+  conversations:
