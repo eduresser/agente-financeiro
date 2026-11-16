@@ -57,3 +57,16 @@ def test_unwritable_location_raises_storage_error(tmp_path: Path) -> None:
     blocker.write_text("x", encoding="utf-8")
     with pytest.raises(StorageError):
         bootstrap(blocker / "data")
+
+
+def test_module_entrypoint_prepares_the_data_directory(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "DATA_DIR": str(tmp_path / "fresh")}
+    result = subprocess.run(
+        [sys.executable, "-m", "banco_agil.seed"], env=env, capture_output=True, check=False
+    )
+    assert result.returncode == 0
+    assert sorted(p.name for p in (tmp_path / "fresh").iterdir()) == sorted(FILES)

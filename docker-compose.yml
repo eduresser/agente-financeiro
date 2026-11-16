@@ -2,8 +2,9 @@ x-user: &user "${HOST_UID:-1000}:${HOST_GID:-1000}"
 
 services:
   init:
-    image: banco-agil:local
+    image: localhost/banco-agil:local
     build: .
+    pull_policy: never
     user: "0:0"
     entrypoint:
       - sh
@@ -13,7 +14,9 @@ services:
       - ./data:/app/data:z
 
   app:
-    image: banco-agil:local
+    image: localhost/banco-agil:local
+    build: .
+    pull_policy: never
     user: *user
     depends_on:
       init:

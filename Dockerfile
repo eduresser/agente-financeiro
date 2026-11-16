@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM docker.io/library/python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
@@ -18,5 +18,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "src/banco_agil/ui/streamlit_app.py", \
-     "--server.address=0.0.0.0", "--server.port=8501", "--browser.gatherUsageStats=false"]
+CMD ["sh", "-c", "python -m banco_agil.seed && exec streamlit run src/banco_agil/ui/streamlit_app.py --server.address=0.0.0.0 --server.port=8501 --browser.gatherUsageStats=false"]
