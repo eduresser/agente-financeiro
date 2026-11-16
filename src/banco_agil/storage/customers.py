@@ -39,6 +39,10 @@ class CustomerRepository:
                 return _parse(row)
         return None
 
+    def all(self) -> list[Customer]:
+        _, rows = read_rows(self._path)
+        return [_parse(row) for row in rows]
+
     def birth_date_of(self, cpf: str) -> date | None:
         customer = self.get(cpf)
         return customer.birth_date if customer else None
