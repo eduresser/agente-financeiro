@@ -16,7 +16,7 @@ from banco_agil.graph.triage import (
 )
 from tests.fakes import ScriptedChatModel, ai
 
-CUSTOMERS = {"12345678900": date(1990, 5, 17)}
+CUSTOMERS = {"12345678909": date(1990, 5, 17)}
 
 
 def lookup(cpf: str) -> date | None:
@@ -38,29 +38,29 @@ def last_reply(state: GraphState) -> str:
 
 
 def authenticated_state() -> GraphState:
-    return {"phase": "active", "customer_cpf": "12345678900", "active_agent": "triage"}
+    return {"phase": "active", "customer_cpf": "12345678909", "active_agent": "triage"}
 
 
 def test_two_step_login_authenticates_and_asks_what_is_needed() -> None:
     auth = make_auth_node(lookup)
-    state = turn(auth, {"phase": "auth"}, "123.456.789-00")
+    state = turn(auth, {"phase": "auth"}, "123.456.789-09")
     assert state.get("customer_cpf") is None
     state = turn(auth, state, "17/05/1990")
     assert state["phase"] == "active"
-    assert state["customer_cpf"] == "12345678900"
+    assert state["customer_cpf"] == "12345678909"
     assert "ajudar" in last_reply(state)
 
 
 def test_login_with_both_values_in_one_message() -> None:
     auth = make_auth_node(lookup)
-    state = turn(auth, {"phase": "auth"}, "cpf 12345678900 nascimento 1990-05-17")
-    assert state["customer_cpf"] == "12345678900"
+    state = turn(auth, {"phase": "auth"}, "cpf 12345678909 nascimento 1990-05-17")
+    assert state["customer_cpf"] == "12345678909"
 
 
 def test_wrong_birth_date_gives_same_message_for_any_failure_cause() -> None:
     auth = make_auth_node(lookup)
-    wrong_date = turn(auth, turn(auth, {"phase": "auth"}, "12345678900"), "01/01/2000")
-    unknown_cpf = turn(auth, turn(auth, {"phase": "auth"}, "99999999999"), "17/05/1990")
+    wrong_date = turn(auth, turn(auth, {"phase": "auth"}, "12345678909"), "01/01/2000")
+    unknown_cpf = turn(auth, turn(auth, {"phase": "auth"}, "52998224725"), "17/05/1990")
     assert last_reply(wrong_date) == last_reply(unknown_cpf) == AUTH_RETRY
     assert wrong_date["auth_attempts"] == 1
 
@@ -69,7 +69,7 @@ def test_third_failure_ends_the_conversation_with_farewell() -> None:
     auth = make_auth_node(lookup)
     state: GraphState = {"phase": "auth"}
     for _ in range(3):
-        state = turn(auth, turn(auth, state, "12345678900"), "01/01/2000")
+        state = turn(auth, turn(auth, state, "12345678909"), "01/01/2000")
     assert state["phase"] == "ended"
     assert last_reply(state) == AUTH_LOCKED
 
@@ -130,5 +130,5 @@ def test_second_subject_after_first_needs_no_new_credentials() -> None:
     state = turn(triage, authenticated_state(), "meu limite")
     state = turn(triage, {**state, "active_agent": "triage"}, "cotação do euro")
     assert state["active_agent"] == "exchange"
-    assert state["customer_cpf"] == "12345678900"
+    assert state["customer_cpf"] == "12345678909"
     assert state["phase"] == "active"
