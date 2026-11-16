@@ -1,9 +1,27 @@
+x-user: &user "${HOST_UID:-1000}:${HOST_GID:-1000}"
+
 services:
-  app:
+  init:
+    image: banco-agil:local
     build: .
+    user: "0:0"
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /app/data && chown -R ${HOST_UID:-1000}:${HOST_GID:-1000} /app/data
+    volumes:
+      - ./data:/app/data:z
+
+  app:
+    image: banco-agil:local
+    user: *user
+    depends_on:
+      init:
+        condition: service_completed_successfully
     ports:
       - "8501:8501"
     environment:
+      HOME: /tmp
       CHAT_MODEL: ${CHAT_MODEL:-}
       CHAT_MODEL_API_KEY: ${CHAT_MODEL_API_KEY:-}
       CHAT_MODEL_BASE_URL: ${CHAT_MODEL_BASE_URL:-}
@@ -12,8 +30,5 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-}
     volumes:
-      - banco_data:/app/data
+      - ./data:/app/data:z
     restart: unless-stopped
-
-volumes:
-  banco_data:

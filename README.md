@@ -93,6 +93,8 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
    docker compose up
    ```
 
+   O container roda com o seu usuário e grava os dados na pasta local `data/`. O padrão é o usuário `1000:1000`. Se o seu for outro, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up`. Com podman rootless, use `HOST_UID=0 HOST_GID=0`.
+
    Sem Docker: `uv sync && uv run streamlit run src/banco_agil/ui/streamlit_app.py`.
 
 3. Abra <http://localhost:8501> e converse.
@@ -112,7 +114,7 @@ Todos os dados são fictícios.
 
 Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos. A pasta não é versionada.
 
-Para voltar ao estado inicial, apague os dados: com Docker, `docker compose down -v`; sem Docker, `rm -r data`. Com Docker, para ver os arquivos: `docker compose exec app cat data/solicitacoes_aumento_limite.csv`.
+Para voltar ao estado inicial, pare a aplicação e apague a pasta: `rm -r data`. Os arquivos ficam em `data/`, incluindo `data/solicitacoes_aumento_limite.csv` e o banco de conversas em `data/runtime/`.
 
 ### Testes e qualidade
 
