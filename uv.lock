@@ -293,6 +293,7 @@ name = "banco-agil"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "langchain-litellm" },
     { name = "langgraph" },
     { name = "pydantic-settings" },
@@ -309,6 +310,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain-litellm", specifier = ">=0.11.2" },
     { name = "langgraph", specifier = ">=1.2.22" },
     { name = "pydantic-settings", specifier = ">=2.16.3" },
