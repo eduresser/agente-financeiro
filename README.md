@@ -90,10 +90,10 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
 2. Suba a aplicação:
 
    ```bash
-   docker compose up --build
+   docker compose up --build --force-recreate
    ```
 
-   O container roda com o seu usuário e grava os dados na pasta local `data/`. O padrão é o usuário `1000:1000`. Se o seu for outro, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up`. Com podman rootless, use `HOST_UID=0 HOST_GID=0`.
+   O container roda com o seu usuário e grava os dados na pasta local `data/`. O padrão é o usuário `1000:1000`. Se o seu for outro, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up --build --force-recreate`. Com podman rootless, use `HOST_UID=0 HOST_GID=0`.
 
    Sem Docker: `uv sync && uv run streamlit run src/banco_agil/ui/streamlit_app.py`.
 
