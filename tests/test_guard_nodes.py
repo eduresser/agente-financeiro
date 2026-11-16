@@ -60,11 +60,13 @@ def test_a_normal_message_resets_the_streak() -> None:
 
 
 def test_blocked_message_is_removed_from_history_and_agents_are_skipped() -> None:
-    node = make_input_guard_node(LocalGuardrail(), clock=lambda: NOW)
+    guard = LocalGuardrail()
     state = say({"phase": "active"}, INJECTION)
-    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
+    state = apply(state, make_input_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
+    state = apply(state, make_output_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     texts = [m.content for m in state["messages"]]
     assert INJECTION not in texts
+    assert texts == [BLOCKED_INPUT_REPLY]
     assert state["blocked_input"] is True
 
 

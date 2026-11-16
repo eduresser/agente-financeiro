@@ -57,16 +57,15 @@ def make_input_guard_node(
 
         _log_block("input", result.reason, thread_id, clock)
         streak = state.get("blocked_streak", 0) + 1
-        removal: list[BaseMessage] = [RemoveMessage(id=last.id)] if last.id else []
         if streak >= MAX_BLOCKED_STREAK:
             return {
-                "messages": [*removal, AIMessage(content=CLOSING_REPLY)],
+                "messages": [AIMessage(content=CLOSING_REPLY)],
                 "blocked_input": True,
                 "blocked_streak": streak,
                 "phase": "ended",
             }
         return {
-            "messages": [*removal, AIMessage(content=BLOCKED_INPUT_REPLY)],
+            "messages": [AIMessage(content=BLOCKED_INPUT_REPLY)],
             "blocked_input": True,
             "blocked_streak": streak,
         }
@@ -83,6 +82,8 @@ def make_output_guard_node(
         replaced: list[BaseMessage] = []
         for message in reversed(state.get("messages", [])):
             if isinstance(message, HumanMessage):
+                if state.get("blocked_input") and message.id:
+                    replaced.append(RemoveMessage(id=message.id))
                 break
             if not isinstance(message, AIMessage) or not isinstance(message.content, str):
                 continue
