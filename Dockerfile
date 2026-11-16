@@ -12,10 +12,13 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src ./src
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8501
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 CMD ["sh", "-c", "python -m banco_agil.seed && exec streamlit run src/banco_agil/ui/streamlit_app.py --server.address=0.0.0.0 --server.port=8501 --browser.gatherUsageStats=false"]

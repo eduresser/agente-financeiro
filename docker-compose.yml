@@ -1,30 +1,14 @@
-x-user: &user "${HOST_UID:-1000}:${HOST_GID:-1000}"
-
 services:
-  init:
-    image: localhost/banco-agil:local
-    build: .
-    pull_policy: never
-    user: "0:0"
-    entrypoint:
-      - sh
-      - -c
-      - mkdir -p /app/data && chown -R ${HOST_UID:-1000}:${HOST_GID:-1000} /app/data
-    volumes:
-      - ./data:/app/data:z
-
   app:
-    image: localhost/banco-agil:local
     build: .
+    image: localhost/banco-agil:local
     pull_policy: never
-    user: *user
-    depends_on:
-      init:
-        condition: service_completed_successfully
     ports:
       - "8501:8501"
     environment:
       HOME: /tmp
+      HOST_UID: ${HOST_UID:-1000}
+      HOST_GID: ${HOST_GID:-1000}
       CHAT_MODEL: ${CHAT_MODEL:-}
       CHAT_MODEL_API_KEY: ${CHAT_MODEL_API_KEY:-}
       CHAT_MODEL_BASE_URL: ${CHAT_MODEL_BASE_URL:-}
