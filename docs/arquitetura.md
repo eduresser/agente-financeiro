@@ -34,6 +34,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | `logging_utils.py`, `observability.py` | Mascaramento de CPF em logs e traces |
 | `domain/` | Regras puras: CPF, autenticação, regras de crédito e score |
 | `storage/` | Repositórios CSV com gravação atômica |
+| `seed/` | Criação dos dados sintéticos quando os arquivos não existem |
 | `exchange/` | Interface de cotação e implementação da AwesomeAPI |
 | `guardrails/` | Interface, regras locais e modelo juiz |
 | `tools/` | Ferramentas de cada agente, com o CPF já injetado |
@@ -52,6 +53,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | Reanálise após a entrevista executada por código | Não depende de o modelo lembrar do pedido |
 | Regras de negócio em funções puras | Testáveis sem modelo |
 | CSV gravado em arquivo temporário e renomeado | Falha no meio da gravação não corrompe a base |
+| Dados sintéticos criados na partida, só para arquivos ausentes | Execução idempotente: nunca sobrescreve dados existentes, e `data/` fica fora do git |
 | Guardrails atrás da interface `Guardrail` | Permite trocar por um serviço gerenciado sem mexer nos agentes |
 | Modelo juiz só em caso de suspeita; falha do juiz bloqueia | Economiza chamadas e falha de forma segura |
 | Fachada `ChatService.send` como único ponto de entrada | Captura qualquer exceção e devolve resposta amigável |

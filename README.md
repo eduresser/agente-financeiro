@@ -110,7 +110,9 @@ Todos os dados são fictícios.
 | Elisa Prado | 745.191.268-00 | 30/01/2001 | R$ 8.000,00 | 700 |
 | Fábio Teixeira | 281.456.379-37 | 12/12/1969 | R$ 500,00 | 0 |
 
-Com Docker, os dados ficam num volume e persistem entre execuções. Para voltar ao estado inicial: `docker compose down -v`. Para ver os arquivos: `docker compose exec app cat data/solicitacoes_aumento_limite.csv`. Sem Docker, os CSVs de `data/` são alterados no próprio repositório; para restaurar, use `git checkout data`.
+Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos. A pasta não é versionada.
+
+Para voltar ao estado inicial, apague os dados: com Docker, `docker compose down -v`; sem Docker, `rm -r data`. Com Docker, para ver os arquivos: `docker compose exec app cat data/solicitacoes_aumento_limite.csv`.
 
 ### Testes e qualidade
 
