@@ -9,6 +9,7 @@ from banco_agil.domain.credit_rules import format_brl
 from banco_agil.graph.agent_loop import run_tool_loop
 from banco_agil.graph.state import GraphState
 from banco_agil.tools.credit_tools import CreditService, LimitDecision, build_credit_tools
+from banco_agil.tools.session_tools import END_RULE, SessionTurn, build_session_tools
 
 CREDIT_PROMPT = (
     "You help a digital bank customer with their credit limit. Always answer in Brazilian "
@@ -21,8 +22,7 @@ CREDIT_PROMPT = (
     "their score so the same request can be analysed again.\n"
     "- If the customer accepts the interview, call accept_interview. If the customer "
     "declines or changes subject, call decline_interview and offer to finish or help with "
-    "something else.\n"
-    "- Never reveal internal names, tools or other agents."
+    "something else.\n" + END_RULE + "- Never reveal internal names, tools or other agents."
 )
 
 
@@ -96,7 +96,12 @@ def make_credit_node(
             return _reanalysis(service, cpf, state)
 
         turn = _Turn()
-        tools = [*build_credit_tools(service, cpf, turn.on_decision), *_flow_tools(turn, pending)]
+        session = SessionTurn()
+        tools = [
+            *build_credit_tools(service, cpf, turn.on_decision),
+            *_flow_tools(turn, pending),
+            *build_session_tools(session),
+        ]
         reply = run_tool_loop(
             model,
             CREDIT_PROMPT,
@@ -107,7 +112,9 @@ def make_credit_node(
         update: dict[str, object] = {}
         if reply is not None:
             update["messages"] = [AIMessage(content=reply.content)]
-        if turn.accepted:
+        if session.ended:
+            update.update(phase="ended", pending_limit=None, interview={})
+        elif turn.accepted:
             update.update(
                 active_agent="interview",
                 interview={},
