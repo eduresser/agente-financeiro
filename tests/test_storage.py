@@ -135,3 +135,10 @@ def test_every_score_belongs_to_exactly_one_band(data_dir: Path) -> None:
     assert {score: str(repo.max_limit_for(score)) for score in expected} == expected
     with pytest.raises(StorageError):
         repo.max_limit_for(1001)
+
+
+def test_rewrite_keeps_the_original_file_permissions(data_dir: Path) -> None:
+    path = data_dir / "clientes.csv"
+    path.chmod(0o644)
+    CustomerRepository(path).update_score("11144477735", 700)
+    assert path.stat().st_mode & 0o777 == 0o644

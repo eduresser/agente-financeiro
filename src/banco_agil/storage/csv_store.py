@@ -25,6 +25,17 @@ def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         raise StorageError(f"cannot read {path.name}: {exc}") from exc
 
 
+def _copy_permissions(source: Path, target: str) -> None:
+    try:
+        info = source.stat()
+    except FileNotFoundError:
+        os.chmod(target, 0o644)
+        return
+    os.chmod(target, info.st_mode & 0o777)
+    with contextlib.suppress(PermissionError, OSError):
+        os.chown(target, info.st_uid, info.st_gid)
+
+
 def write_rows_atomic(
     path: Path, fieldnames: Sequence[str], rows: Sequence[Mapping[str, object]]
 ) -> None:
@@ -38,6 +49,7 @@ def write_rows_atomic(
                 writer.writerow({name: str(row[name]) for name in fieldnames})
             handle.flush()
             os.fsync(handle.fileno())
+        _copy_permissions(path, tmp_name)
         os.replace(tmp_name, path)
         tmp_name = None
     except Exception as exc:
