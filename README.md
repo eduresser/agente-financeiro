@@ -90,7 +90,7 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
 2. Suba a aplicação:
 
    ```bash
-   docker compose up
+   docker compose up --build
    ```
 
    O container roda com o seu usuário e grava os dados na pasta local `data/`. O padrão é o usuário `1000:1000`. Se o seu for outro, use `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up`. Com podman rootless, use `HOST_UID=0 HOST_GID=0`.
