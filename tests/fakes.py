@@ -10,7 +10,7 @@ from pydantic import BaseModel, PrivateAttr
 
 
 class ScriptedChatModel(BaseChatModel):
-    script: list[AIMessage | Exception]
+    script: list[Any]
     _calls: int = PrivateAttr(default=0)
     _seen: list[list[BaseMessage]] = PrivateAttr(default_factory=list)
 
