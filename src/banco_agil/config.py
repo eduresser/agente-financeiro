@@ -9,7 +9,9 @@ class ConfigError(Exception):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", case_sensitive=False, env_ignore_empty=True
+    )
 
     chat_model: str = Field(min_length=1)
     chat_model_api_key: str = Field(min_length=1, repr=False)

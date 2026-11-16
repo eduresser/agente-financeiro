@@ -3,12 +3,17 @@ services:
     build: .
     ports:
       - "8501:8501"
-    env_file:
-      - .env
+    environment:
+      CHAT_MODEL: ${CHAT_MODEL:-}
+      CHAT_MODEL_API_KEY: ${CHAT_MODEL_API_KEY:-}
+      CHAT_MODEL_BASE_URL: ${CHAT_MODEL_BASE_URL:-}
+      EXCHANGE_API_BASE_URL: ${EXCHANGE_API_BASE_URL:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-}
     volumes:
-      - ./data:/app/data:z
-      - conversations:/app/data/runtime
+      - banco_data:/app/data
     restart: unless-stopped
 
 volumes:
-  conversations:
+  banco_data:

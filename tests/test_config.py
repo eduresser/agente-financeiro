@@ -51,3 +51,20 @@ def test_model_factory_passes_base_url_only_when_configured(
     monkeypatch.setenv("CHAT_MODEL_BASE_URL", "http://proxy.local/v1")
     with_url = build_chat_model(load_settings())
     assert with_url.api_base == "http://proxy.local/v1"  # type: ignore[attr-defined]
+
+
+def test_empty_optional_variables_fall_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CHAT_MODEL", "provider/some-model")
+    monkeypatch.setenv("CHAT_MODEL_API_KEY", "k-123456789")
+    monkeypatch.setenv("EXCHANGE_API_BASE_URL", "")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "")
+    settings = load_settings()
+    assert settings.exchange_api_base_url == "https://economia.awesomeapi.com.br"
+    assert settings.observability_enabled is False
+
+
+def test_empty_required_variable_is_reported_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CHAT_MODEL", "")
+    monkeypatch.setenv("CHAT_MODEL_API_KEY", "")
+    with pytest.raises(ConfigError, match="CHAT_MODEL_API_KEY"):
+        load_settings()
