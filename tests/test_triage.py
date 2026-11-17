@@ -111,6 +111,18 @@ def test_model_never_sees_messages_that_carry_numbers() -> None:
     assert model.calls == 0 and state["phase"] == "auth"
 
 
+@pytest.mark.parametrize("pending", [None, "12345678909"])
+def test_implausible_birth_date_asks_again_and_costs_an_attempt(pending: str | None) -> None:
+    auth = make_auth_node(lookup)
+    today = date.today()
+    recent = today.replace(year=today.year - 5).strftime("%d/%m/%Y")
+    state = turn(auth, {"phase": "auth", "cpf_candidate": pending}, f"12345678909 {recent}")
+    assert state["phase"] == "auth"
+    assert "parece ser um erro" in last_reply(state)
+    assert state["auth_attempts"] == 1
+    assert state["cpf_candidate"] == "12345678909"
+
+
 def test_both_values_typed_irregularly_in_one_sentence_authenticate() -> None:
     auth = make_auth_node(lookup)
     state = turn(auth, {"phase": "auth"}, "meu CPF é 123 456 789 09 e nasci em 17-05-1990")

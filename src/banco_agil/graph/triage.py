@@ -51,6 +51,11 @@ BIRTH_FORMAT_HELP_VARIANTS = (
     "A data de nascimento não está num formato que eu consiga ler. "
     "Digite no formato 17/05/1990, por favor.",
 )
+BIRTH_IMPLAUSIBLE_VARIANTS = (
+    "Essa data de nascimento parece ser um erro. Digite novamente, no formato DD/MM/AAAA.",
+    "A data informada ainda não parece correta. Confira e digite a data de nascimento "
+    "no formato DD/MM/AAAA, por favor.",
+)
 AUTH_LOCKED = (
     "Não foi possível autenticar o seu acesso e por isso vou encerrar o atendimento por aqui. "
     "Obrigado por procurar o Banco Ágil, e até a próxima!"
@@ -136,6 +141,13 @@ def make_auth_node(
         attempts = state.get("auth_attempts", 0)
         candidate = state.get("cpf_candidate")
         found = extract_credentials(text)
+
+        if found.birth_rejected:
+            return _failure(
+                attempts,
+                _pick(BIRTH_IMPLAUSIBLE_VARIANTS, attempts),
+                keep_candidate=found.cpf or candidate,
+            )
 
         if candidate is None:
             if found.cpf is None:

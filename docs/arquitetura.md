@@ -69,7 +69,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 | Decisão | Motivo |
 |---|---|
 | Três falhas seguidas encerram o atendimento (a primeira tentativa mais as duas novas do enunciado) | Segue o texto do enunciado, sem tentativa extra |
-| CPF e data são extraídos dos grupos de dígitos (11 e 8), ignorando espaços, pontos, traços e barras. A data aceita `DDMMAAAA` e `AAAAMMDD`, com ano entre 1900 e 2100; `MMDDAAAA` não é aceito | Tolera digitação irregular sem tentar adivinhar formatos ambíguos |
+| CPF e data são extraídos dos grupos de dígitos (11 e 8), ignorando espaços, pontos, traços e barras. A data aceita `DDMMAAAA` e `AAAAMMDD`, só para quem tem 18 anos ou mais e ano a partir de 1900 (uma data válida de menor de idade recebe a mensagem "parece ser um erro" e conta como tentativa); `MMDDAAAA` não é aceito | Tolera digitação irregular sem tentar adivinhar formatos ambíguos |
 | Falha de CPF e falha de data geram a mesma mensagem | Evita revelar qual dado está certo |
 | CPF com dígitos verificadores inválidos ou com formato ilegível conta como tentativa | Evita que erros de digitação ou testes de força bruta escapem do limite |
 | A autenticação não usa o modelo | Um texto do cliente ("já estou autenticado") não pode substituir a verificação |

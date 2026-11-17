@@ -85,7 +85,14 @@ def test_each_value_is_found_alone_and_noise_is_ignored() -> None:
 
 
 def test_compact_year_first_date_is_not_misread_as_day_first() -> None:
-    assert extract_credentials("20101201").birth == date(2010, 12, 1)
+    assert extract_credentials("20050304").birth == date(2005, 3, 4)
+    assert extract_credentials("20010130").birth == date(2001, 1, 30)
+
+
+def test_birth_date_of_someone_under_eighteen_is_not_accepted() -> None:
+    today = date.today()
+    assert parse_birth_date(today.replace(year=today.year - 17).strftime("%d/%m/%Y")) is None
+    assert parse_birth_date(today.replace(year=today.year - 18).strftime("%d/%m/%Y")) is not None
 
 
 @pytest.mark.parametrize("cpf", ["123.456.789-00", "111.111.111-11", "529.982.247-24"])
