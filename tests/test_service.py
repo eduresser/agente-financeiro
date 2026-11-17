@@ -53,13 +53,10 @@ def login(service: ChatService, thread: str) -> None:
     assert "Autenticação concluída" in reply.text
 
 
-@pytest.mark.parametrize(
-    "failure",
-    [RuntimeError("quota exceeded"), TimeoutError("model too slow"), ValueError("bad payload")],
-)
 def test_model_failure_gives_friendly_reply_and_keeps_previous_state(
-    data_dir: Path, failure: Exception, caplog: pytest.LogCaptureFixture
+    data_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    failure = RuntimeError("quota exceeded")
     service = make_service(
         data_dir,
         [

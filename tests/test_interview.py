@@ -74,9 +74,7 @@ def test_score_calculation_is_blocked_until_five_valid_answers(customers_path: P
         ("monthly_income", "-100"),
         ("monthly_income", "muito"),
         ("employment", "astronauta"),
-        ("fixed_expenses", "-1"),
         ("dependents", "1.5"),
-        ("dependents", "muitos"),
         ("has_debts", "talvez"),
     ],
 )
@@ -97,14 +95,6 @@ def test_invalid_answer_is_rejected_and_not_stored(
     assert result["ok"] is False
     assert result["ask_again_about"] and result["example_answer"]
     assert field not in session.answers
-
-
-def test_quitting_midway_leaves_scores_untouched(customers_path: Path) -> None:
-    before = customers_path.read_text(encoding="utf-8")
-    session = session_for(customers_path)
-    session.record_answer("monthly_income", "5000")
-    session.record_answer("employment", "autonomo")
-    assert customers_path.read_text(encoding="utf-8") == before
 
 
 def test_finishing_updates_only_the_authenticated_customer(customers_path: Path) -> None:

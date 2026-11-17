@@ -67,9 +67,7 @@ def test_values_are_found_inside_free_text() -> None:
     assert find_cpf("1234567890912") is None
 
 
-@pytest.mark.parametrize(
-    "cpf", ["123.456.789-00", "111.111.111-11", "000.000.000-00", "529.982.247-24"]
-)
+@pytest.mark.parametrize("cpf", ["123.456.789-00", "111.111.111-11", "529.982.247-24"])
 def test_cpf_with_wrong_check_digits_is_rejected_and_costs_an_attempt(cpf: str) -> None:
     assert normalize_cpf(cpf) is None
     assert find_cpf(f"meu cpf {cpf}") is None

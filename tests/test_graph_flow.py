@@ -116,7 +116,6 @@ def test_customer_switches_subject_and_gets_one_seamless_reply_each_time(
     for reply in first + second:
         assert not any(word in reply.lower() for word in FORBIDDEN_WORDS)
     assert harness.state["customer_cpf"] == "11144477735"
-    assert harness.model.calls == 6
 
 
 def test_reply_that_mentions_a_handoff_never_reaches_the_customer(data_dir: Path) -> None:

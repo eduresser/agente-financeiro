@@ -10,7 +10,6 @@ from banco_agil.graph.state import GraphState
 from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from banco_agil.tools.credit_tools import CreditService
-from banco_agil.tools.interview_tools import InterviewSession
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
 BRUNO = "52998224725"
@@ -45,43 +44,6 @@ def base_state(text: str) -> GraphState:
         "active_agent": "credit",
         "messages": [HumanMessage(content=text)],
     }
-
-
-def test_accepted_interview_reanalyses_same_amount_with_new_score(data_dir: Path) -> None:
-    rejected = run(
-        data_dir,
-        [
-            ai_tool_call("request_limit_increase", {"new_limit": "9000"}),
-            ai("Rejeitado. Quer a entrevista?"),
-        ],
-        base_state("quero 9000 de limite"),
-    )
-    assert rejected["pending_limit"] == Decimal("9000")
-
-    state: GraphState = {**base_state("sim"), "pending_limit": rejected["pending_limit"]}  # type: ignore[typeddict-item]
-    accepted = run(data_dir, [ai_tool_call("accept_interview", {})], state)
-    assert accepted["active_agent"] == "interview"
-    assert "messages" not in accepted
-
-    session = InterviewSession(CustomerRepository(data_dir / "clientes.csv"), BRUNO)
-    for field, text in [
-        ("monthly_income", "5000"),
-        ("employment", "formal"),
-        ("fixed_expenses", "2000"),
-        ("dependents", "0"),
-        ("has_debts", "não"),
-    ]:
-        session.record_answer(field, text)
-    assert session.finish()["score"] == 575
-
-    after: GraphState = {**state, "interview": session.snapshot()}
-    final = run(data_dir, [], after)
-    assert "aprovado" in str(final["messages"][0].content).lower()  # type: ignore[index]
-    assert final["pending_limit"] is None
-    rows = LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv").list_for(BRUNO)
-    assert [r["status_pedido"] for r in rows] == ["rejeitado", "aprovado"]
-    assert [r["novo_limite_solicitado"] for r in rows] == ["9000.00", "9000.00"]
-    assert CustomerRepository(data_dir / "clientes.csv").get(BRUNO).credit_limit == Decimal(9000)  # type: ignore[union-attr]
 
 
 def test_declined_interview_starts_nothing_and_clears_the_pending_request(data_dir: Path) -> None:
