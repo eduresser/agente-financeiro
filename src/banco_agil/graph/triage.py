@@ -72,6 +72,12 @@ TRIAGE_PROMPT = (
     "Answer only with the topic."
 )
 
+_WANTS_TO_END = re.compile(
+    r"\b(encerrar|encerre|encerra|finalizar|finalize|tchau|adeus|sair|desistir)\b"
+    r"|\bn[ãa]o quero (mais )?continuar\b",
+    re.IGNORECASE,
+)
+
 _AGENT_FOR_TOPIC = {"credit": "credit", "interview": "interview", "exchange": "exchange"}
 
 
@@ -108,6 +114,9 @@ def make_auth_node(lookup: BirthLookup) -> Callable[[GraphState], dict[str, obje
         candidate = state.get("cpf_candidate")
         cpf_in_text = find_cpf(text)
         birth_in_text = find_birth_date(text)
+
+        if cpf_in_text is None and birth_in_text is None and _WANTS_TO_END.search(text):
+            return _reply(FAREWELL, phase="ended", cpf_candidate=None)
 
         if candidate is None:
             if cpf_in_text is None:

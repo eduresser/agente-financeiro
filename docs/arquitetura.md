@@ -60,6 +60,77 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | Checkpointer SQLite indexado pelo identificador da conversa | Retoma a conversa após reinício |
 | CPF validado pelos dígitos verificadores | Descarta erros de digitação antes de consultar a base |
 
+## Decisões em pontos que o enunciado não define
+
+O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de forma explícita, com o motivo.
+
+### Autenticação
+
+| Decisão | Motivo |
+|---|---|
+| Três falhas seguidas encerram o atendimento (a primeira tentativa mais as duas novas do enunciado) | Segue o texto do enunciado, sem tentativa extra |
+| Falha de CPF e falha de data geram a mesma mensagem | Evita revelar qual dado está certo |
+| CPF com dígitos verificadores inválidos ou com formato ilegível conta como tentativa | Evita que erros de digitação ou testes de força bruta escapem do limite |
+| A autenticação não usa o modelo | Um texto do cliente ("já estou autenticado") não pode substituir a verificação |
+
+### Crédito
+
+| Decisão | Motivo |
+|---|---|
+| Faixas de score definidas em `score_limite.csv`: 0–300 até R$ 1.000, 301–500 até R$ 5.000, 501–700 até R$ 15.000, 701–1000 até R$ 40.000 | O enunciado cita a tabela, mas não os valores. As faixas são fictícias e editáveis no arquivo |
+| O teto de cada faixa é inclusivo: pedir exatamente o teto é aprovado, e um centavo acima é rejeitado | Evita ambiguidade na fronteira |
+| Status gravados como `aprovado` e `rejeitado` | O enunciado usa "rejeitado" na coluna e "reprovado" no texto. Adotei um só termo para facilitar filtros |
+| Pedido aprovado atualiza o limite em `clientes.csv` | Sem isso, a consulta seguinte mostraria o limite antigo e o atendimento ficaria incoerente |
+| Valor igual ou menor que o limite atual é recusado, sem registro e sem alterar o limite | Um pedido de aumento nunca deve reduzir o limite. Reduzir é outra operação, que exigiria confirmação do cliente |
+| Pedido rejeitado informa o teto do score atual | Dá ao cliente um valor possível para tentar de novo |
+| Após a rejeição, o atendimento oferece a entrevista e, se aceita, reanalisa o mesmo valor por código | O cliente não precisa repetir o pedido, e o resultado não depende de o modelo lembrar |
+
+### Entrevista
+
+| Decisão | Motivo |
+|---|---|
+| O modelo conduz a conversa, e o código controla ordem, validação e cálculo | Conversa natural (adequada a canais como o WhatsApp) sem abrir mão de regras exatas |
+| Uma pergunta por vez, na ordem do enunciado | Evita respostas misturadas e respostas fora de ordem |
+| Respostas naturais ("CLT", "uns 8 mil", "dois filhos") são aceitas e convertidas | O cliente não deve precisar reescrever o que já foi entendido |
+| Resposta ambígua ou contraditória é recusada (por exemplo, "CLT e também MEI") | É melhor perguntar de novo do que calcular um score com dado duvidoso |
+| Após duas falhas na mesma pergunta, o atendimento oferece pausar ou parar | Evita um laço de perguntas repetidas |
+| A fórmula do enunciado é aplicada como está: 3 ou mais dependentes pesam 30, arredondamento comercial, resultado limitado a 0–1000 | Mantém a fórmula pedida e garante a faixa de 0 a 1000 |
+| Desistir no meio não altera o score | O score só é gravado com as cinco respostas válidas |
+
+### Câmbio
+
+| Decisão | Motivo |
+|---|---|
+| AwesomeAPI, que não exige chave | Qualquer pessoa executa o projeto sem criar conta em outro serviço |
+| Usa o valor de compra (`bid`) em reais | Um único valor, claro para o cliente |
+| Sem moeda informada, consulta o dólar | O enunciado cita o dólar como padrão |
+| Toda resposta traz valor, moeda e horário da consulta | Deixa claro que a cotação é de um instante |
+| Moeda desconhecida ou API fora do ar nunca produz um valor inventado | Um número errado é pior que nenhuma resposta |
+
+### Segurança e conduta
+
+| Decisão | Motivo |
+|---|---|
+| O CPF autenticado fica no estado do grafo, e nenhuma ferramenta o recebe como argumento | O modelo não consegue consultar outro cliente |
+| Guardrails de entrada e de saída atrás de uma interface substituível | Permite trocar por um serviço gerenciado sem mexer nos agentes |
+| Regras locais decidem os casos claros, e o modelo juiz só é chamado em caso de suspeita | Economiza chamadas e custo |
+| Se o juiz falhar, a mensagem é bloqueada | Na dúvida, o sistema escolhe o lado seguro |
+| O juiz usa o mesmo tempo limite do modelo do atendimento (60 s, até 3 tentativas) | Quem administra escolhe um modelo rápido em `JUDGE_CHAT_MODEL`, sem um limite fixo próprio |
+| Sem `JUDGE_CHAT_MODEL`, o juiz usa o modelo do atendimento | Uma única chave basta para executar o projeto |
+| Pedido para encerrar a conversa vale a qualquer momento: nos agentes, pela ferramenta `end_conversation`; na autenticação e na triagem, por palavras-chave e classificação, com a mesma despedida | Triagem e autenticação não têm ferramentas, e a autenticação não usa o modelo. Encerrar durante o login não gasta tentativa |
+| Três bloqueios seguidos encerram o atendimento | Limita tentativas repetidas de manipulação |
+| Respostas com CPF, limite ou score de outro cliente são trocadas por uma resposta segura | Última barreira contra vazamento, mesmo que um agente erre |
+| Respostas não mencionam agentes, ferramentas nem transferências | Cumpre a regra de que o cliente percebe um único atendente |
+
+### Sessão e dados
+
+| Decisão | Motivo |
+|---|---|
+| A conversa é salva em SQLite | Reiniciar o serviço não obriga o cliente a se autenticar de novo |
+| Conversa inativa por 5 minutos é encerrada (configurável, `0` desliga) | Evita deixar uma sessão autenticada aberta |
+| Os dados de teste são criados na primeira execução e a pasta `data/` não é versionada | Execução simples e sem risco de sobrescrever dados existentes |
+| Logs e traces mascaram o CPF e não registram o texto do cliente | Privacidade dos dados, inclusive em ferramentas de observabilidade |
+
 ## Segurança e privacidade
 
 - O CPF aparece mascarado (`***.456.789-**`) em logs, eventos de bloqueio e traces.

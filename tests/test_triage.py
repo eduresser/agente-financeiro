@@ -10,6 +10,7 @@ from banco_agil.graph.triage import (
     AUTH_LOCKED,
     AUTH_RETRY,
     CPF_FORMAT_HELP,
+    FAREWELL,
     GREETING,
     SCOPE_HELP,
     make_auth_node,
@@ -73,6 +74,16 @@ def test_third_failure_ends_the_conversation_with_farewell() -> None:
         state = turn(auth, turn(auth, state, "12345678909"), "01/01/2000")
     assert state["phase"] == "ended"
     assert last_reply(state) == AUTH_LOCKED
+
+
+@pytest.mark.parametrize("pending", [None, "12345678909"])
+def test_asking_to_end_during_login_closes_without_using_an_attempt(pending: str | None) -> None:
+    auth = make_auth_node(lookup)
+    state: GraphState = {"phase": "auth", "cpf_candidate": pending}
+    state = turn(auth, state, "quero encerrar")
+    assert state["phase"] == "ended"
+    assert last_reply(state) == FAREWELL
+    assert state.get("auth_attempts", 0) == 0
 
 
 def test_short_cpf_counts_as_attempt_and_explains_format() -> None:

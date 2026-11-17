@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     chat_model: str = Field(min_length=1)
     chat_model_api_key: str = Field(min_length=1, repr=False)
     chat_model_base_url: str | None = None
-    judge_chat_model: str = Field(min_length=1)
-    judge_chat_model_api_key: str = Field(min_length=1, repr=False)
+    judge_chat_model: str | None = None
+    judge_chat_model_api_key: str | None = Field(default=None, repr=False)
     judge_chat_model_base_url: str | None = None
     exchange_api_base_url: str = "https://economia.awesomeapi.com.br"
     session_timeout_seconds: int = Field(default=300, ge=0)
@@ -36,10 +36,13 @@ def env_var_names() -> list[str]:
 
 def load_settings() -> Settings:
     try:
-        return Settings()
+        settings = Settings()
     except ValidationError as exc:
         names = sorted({str(err["loc"][0]).upper() for err in exc.errors() if err["loc"]})
         raise ConfigError(f"Missing or invalid environment variables: {', '.join(names)}") from None
+    if settings.judge_chat_model and not settings.judge_chat_model_api_key:
+        raise ConfigError("Missing or invalid environment variables: JUDGE_CHAT_MODEL_API_KEY")
+    return settings
 
 
 @lru_cache(maxsize=1)

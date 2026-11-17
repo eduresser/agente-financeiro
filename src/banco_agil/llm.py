@@ -29,6 +29,8 @@ def build_chat_model(settings: Settings | None = None, **overrides: object) -> B
 
 def build_judge_model(settings: Settings | None = None, **overrides: object) -> BaseChatModel:
     settings = settings or get_settings()
+    if not settings.judge_chat_model or not settings.judge_chat_model_api_key:
+        return build_chat_model(settings, **overrides)
     return _build(
         settings.judge_chat_model,
         settings.judge_chat_model_api_key,

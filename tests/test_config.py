@@ -89,8 +89,20 @@ def test_judge_model_uses_its_own_settings(monkeypatch: pytest.MonkeyPatch) -> N
     assert build_chat_model(settings).model == "provider/chat-model"  # type: ignore[attr-defined]
 
 
-def test_missing_judge_variables_are_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_judge_falls_back_to_the_chat_model_when_not_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CHAT_MODEL", "provider/chat-model")
+    monkeypatch.setenv("CHAT_MODEL_API_KEY", "k-123456789")
+    monkeypatch.setenv("CHAT_MODEL_BASE_URL", "http://chat.local/v1")
+    judge = build_judge_model(load_settings())
+    assert judge.model == "provider/chat-model"  # type: ignore[attr-defined]
+    assert judge.api_base == "http://chat.local/v1"  # type: ignore[attr-defined]
+
+
+def test_judge_model_without_its_key_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CHAT_MODEL", "m")
     monkeypatch.setenv("CHAT_MODEL_API_KEY", "k")
-    with pytest.raises(ConfigError, match="JUDGE_CHAT_MODEL"):
+    monkeypatch.setenv("JUDGE_CHAT_MODEL", "other/judge-model")
+    with pytest.raises(ConfigError, match="JUDGE_CHAT_MODEL_API_KEY"):
         load_settings()
