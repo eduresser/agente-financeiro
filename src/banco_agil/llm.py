@@ -8,8 +8,8 @@ def _build(model: str, api_key: str, base_url: str | None, **overrides: object) 
     kwargs: dict[str, object] = {
         "model": model,
         "api_key": api_key,
-        "request_timeout": 30,
-        "max_retries": 1,
+        "request_timeout": 60,
+        "max_retries": 3,
     }
     if base_url:
         kwargs["api_base"] = base_url
