@@ -38,7 +38,6 @@ TIMEOUT_REPLY = (
     "Estou encerrando o atendimento por inatividade. "
     "Obrigado por procurar o Banco Ágil, e até a próxima!"
 )
-JUDGE_TIMEOUT_SECONDS = 10
 
 
 @dataclass(frozen=True)
@@ -176,7 +175,7 @@ def create_service(
     bootstrap(data_dir)
     customers = CustomerRepository(data_dir / "clientes.csv")
     bands = ScoreLimitRepository(data_dir / "score_limite.csv")
-    judge = ModelJudge(build_judge_model(settings, request_timeout=JUDGE_TIMEOUT_SECONDS))
+    judge = ModelJudge(build_judge_model(settings))
     graph = build_graph(
         model=build_chat_model(settings),
         customers=customers,

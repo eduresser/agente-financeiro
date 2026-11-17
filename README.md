@@ -124,6 +124,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 | Guardrails de entrada e de saída atrás de uma interface substituível | Permite trocar por um serviço gerenciado sem mexer nos agentes |
 | Regras locais decidem os casos claros, e o modelo juiz só é chamado em caso de suspeita | Economiza chamadas e custo |
 | Se o juiz falhar, a mensagem é bloqueada | Na dúvida, o sistema escolhe o lado seguro |
+| O juiz usa o mesmo tempo limite do modelo do atendimento (30 s) | Quem administra escolhe um modelo rápido em `JUDGE_CHAT_MODEL`, sem um limite fixo próprio |
 | Três bloqueios seguidos encerram o atendimento | Limita tentativas repetidas de manipulação |
 | Respostas com CPF, limite ou score de outro cliente são trocadas por uma resposta segura | Última barreira contra vazamento, mesmo que um agente erre |
 | Respostas não mencionam agentes, ferramentas nem transferências | Cumpre a regra de que o cliente percebe um único atendente |
@@ -183,7 +184,7 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
    | `CHAT_MODEL` | sim | Identificador do modelo no formato do LiteLLM. Exemplo: `gemini/gemini-flash-latest` |
    | `CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo. Para o Gemini, gere em <https://ai.google.dev/gemini-api/docs/api-key> |
    | `CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor |
-   | `JUDGE_CHAT_MODEL` | sim | Modelo dos guardrails (juiz), diferente do modelo do atendimento, no formato do LiteLLM |
+   | `JUDGE_CHAT_MODEL` | sim | Modelo dos guardrails (juiz), configurado à parte do modelo do atendimento, no formato do LiteLLM. Prefira um modelo rápido |
    | `JUDGE_CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo juiz |
    | `JUDGE_CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor do juiz |
    | `EXCHANGE_API_BASE_URL` | não | Padrão: `https://economia.awesomeapi.com.br` |
