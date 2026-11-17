@@ -62,7 +62,7 @@ Todos os dados são fictícios.
 | Elisa Prado | 745.191.268-00 | 30/01/2001 | R$ 8.000,00 | 700 |
 | Fábio Teixeira | 281.456.379-37 | 12/12/1969 | R$ 500,00 | 0 |
 
-Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos. A pasta não é versionada.
+As tabelas `clientes.csv`, `score_limite.csv` e `solicitacoes_aumento_limite.csv` não estão versionadas no repositório. Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos.
 
 Para voltar ao estado inicial, pare a aplicação e apague a pasta: `rm -r data`. Os arquivos ficam em `data/`, incluindo `data/solicitacoes_aumento_limite.csv` e o banco de conversas em `data/runtime/`.
 
@@ -77,6 +77,7 @@ Com os clientes acima, três conversas cobrem o atendimento completo. Use "Nova 
    4. O pedido de R$ 3.000 é reanalisado e aprovado. Confira `data/clientes.csv` (limite e score) e `data/solicitacoes_aumento_limite.csv` (duas linhas: rejeitado e aprovado).
 2. **Falha de autenticação**: informe CPF e data que não conferem três vezes seguidas. O atendimento é encerrado com uma despedida educada.
 3. **Câmbio e encerramento** (Ana Souza, CPF `111.444.777-35`, nascimento `17/05/1990`): pergunte a cotação do dólar, depois a do euro, e peça para encerrar.
+4. **API de câmbio fora do ar** (Ana Souza): suba a aplicação com `EXCHANGE_API_BASE_URL=http://localhost:1` e peça a cotação do dólar. O atendimento avisa que a cotação está indisponível, sem inventar valor, e segue disponível para outros assuntos.
 
 ### Testes e qualidade
 
@@ -85,6 +86,15 @@ uv run pytest
 uv run ruff check src tests
 uv run mypy src
 ```
+
+Testes com modelo real, sob demanda (usam as chaves do `.env` e consomem cota; são pulados sem chave):
+
+```bash
+uv run pytest -m llm    # cenários completos com o modelo real e avaliação por rubrica
+uv run pytest -m live   # contrato da API de câmbio real
+```
+
+Cada cenário roda 3 vezes com dados novos. O estado final dos CSVs e o encerramento da conversa são verificados por código e exigem 3 de 3. Critérios de linguagem (português, sem citar agentes ou ferramentas, tom) são avaliados por um modelo juiz (`JUDGE_CHAT_MODEL`, ou o modelo do atendimento se vazio) com critérios binários e exigem 2 de 3. A cotação usa um provedor falso com valores conhecidos, para o juiz poder conferir o número; o teste `live` separado detecta mudanças no formato da API real. Optei por pytest simples, sem DeepEval, porque 7 cenários com critérios binários não justificam uma dependência nova.
 
 ## Arquitetura
 
@@ -142,15 +152,11 @@ Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Decisões principais
 
-O enunciado deixa lacunas, e cada uma foi decidida de forma explícita. A lista completa, com o motivo de cada escolha, está em [docs/arquitetura.md](docs/arquitetura.md#decisões-em-pontos-que-o-enunciado-não-define). As mais importantes:
+O enunciado deixa lacunas, e cada uma foi decidida de forma explícita e justificada em [docs/arquitetura.md](docs/arquitetura.md#decisões-em-pontos-que-o-enunciado-não-define). As que mudam o comportamento visível:
 
 - **Status** gravados como `aprovado` e `rejeitado` (o enunciado usa "rejeitado" e "reprovado").
-- **Aprovação altera o limite** em `clientes.csv`. O enunciado só pede o status, mas sem a alteração a consulta seguinte mostraria o limite antigo.
-- **Faixas de score** em `score_limite.csv`, fictícias e editáveis. O teto de cada faixa é inclusivo.
-- **Autenticação** decidida só por código, com três falhas seguidas encerrando o atendimento. CPF e data são lidos dos grupos de dígitos, ignorando pontuação irregular (`123 456 789 09`, `17-05-1990`), em uma ou duas mensagens.
-- **Encerramento a qualquer momento:** crédito, entrevista e câmbio usam a ferramenta `end_conversation`. A triagem e a autenticação, que não têm ferramentas, reconhecem o pedido por classificação do modelo e respondem com a mesma despedida.
-- **Câmbio** pela AwesomeAPI, que não exige chave.
-- **Guardrails** de entrada e saída atrás de uma interface substituível. O modelo juiz só é chamado em caso de suspeita.
+- **Aprovação altera o limite** em `clientes.csv`, para a consulta seguinte não mostrar o limite antigo.
+- **Encerramento a qualquer momento:** nos agentes pela ferramenta `end_conversation`; na triagem e na autenticação, que não têm ferramentas, por classificação do modelo.
 
 ## Escolhas técnicas
 
@@ -164,6 +170,7 @@ O enunciado deixa lacunas, e cada uma foi decidida de forma explícita. A lista 
 | Interface | Streamlit | Tela de conversa simples para testar o fluxo completo |
 | Observabilidade | Langfuse, opcional | Traces com CPF mascarado e sem o texto do cliente |
 | Testes | pytest com modelo falso roteirizado e HTTP simulado | Executa código real e só mocka dependências externas |
+| Testes com modelo real | pytest com marcadores `llm` e `live`, rubrica binária e 3 tentativas por cenário | Verifica o comportamento que o modelo falso não alcança, sem entrar no CI |
 
 ## Estrutura do código
 
