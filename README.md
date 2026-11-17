@@ -147,8 +147,8 @@ O enunciado deixa lacunas, e cada uma foi decidida de forma explícita. A lista 
 - **Status** gravados como `aprovado` e `rejeitado` (o enunciado usa "rejeitado" e "reprovado").
 - **Aprovação altera o limite** em `clientes.csv`. O enunciado só pede o status, mas sem a alteração a consulta seguinte mostraria o limite antigo.
 - **Faixas de score** em `score_limite.csv`, fictícias e editáveis. O teto de cada faixa é inclusivo.
-- **Autenticação** decidida só por código, com três falhas seguidas encerrando o atendimento.
-- **Encerramento a qualquer momento:** crédito, entrevista e câmbio usam a ferramenta `end_conversation`. A triagem e a autenticação, que não têm ferramentas, reconhecem o pedido por classificação e por palavras-chave e respondem com a mesma despedida.
+- **Autenticação** decidida só por código, com três falhas seguidas encerrando o atendimento. CPF e data são lidos dos grupos de dígitos, ignorando pontuação irregular (`123 456 789 09`, `17-05-1990`), em uma ou duas mensagens.
+- **Encerramento a qualquer momento:** crédito, entrevista e câmbio usam a ferramenta `end_conversation`. A triagem e a autenticação, que não têm ferramentas, reconhecem o pedido por classificação do modelo e respondem com a mesma despedida.
 - **Câmbio** pela AwesomeAPI, que não exige chave.
 - **Guardrails** de entrada e saída atrás de uma interface substituível. O modelo juiz só é chamado em caso de suspeita.
 

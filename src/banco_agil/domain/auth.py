@@ -4,13 +4,19 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal
 
-from banco_agil.domain.cpf import normalize_cpf
+from banco_agil.domain.cpf import is_valid_cpf, normalize_cpf
 
 MAX_ATTEMPTS = 3
 
 BirthLookup = Callable[[str], date | None]
 
-_DATE_IN_TEXT = re.compile(r"(?<!\d)(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})(?!\d)")
+CPF_DIGITS = 11
+BIRTH_DIGITS = 8
+MIN_BIRTH_YEAR = 1900
+MAX_BIRTH_YEAR = 2100
+
+_SEPARATORS = re.compile(r"[\s.\-/,_]+")
+_ONLY_DATE_CHARS = re.compile(r"[\d\s.\-/]+")
 
 
 @dataclass(frozen=True)
@@ -20,19 +26,61 @@ class AuthOutcome:
     cpf: str | None = None
 
 
-def parse_birth_date(raw: str) -> date | None:
-    cleaned = raw.strip()
-    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+@dataclass(frozen=True)
+class Credentials:
+    cpf: str | None = None
+    birth: date | None = None
+
+
+def _parse_compact_date(digits: str) -> date | None:
+    if len(digits) != BIRTH_DIGITS:
+        return None
+    for fmt in ("%d%m%Y", "%Y%m%d"):
         try:
-            return datetime.strptime(cleaned, fmt).date()
+            parsed = datetime.strptime(digits, fmt).date()
         except ValueError:
             continue
+        if MIN_BIRTH_YEAR <= parsed.year <= MAX_BIRTH_YEAR:
+            return parsed
     return None
 
 
-def find_birth_date(text: str) -> str | None:
-    match = _DATE_IN_TEXT.search(text)
-    return match.group(1) if match else None
+def parse_birth_date(raw: str) -> date | None:
+    cleaned = raw.strip()
+    if not _ONLY_DATE_CHARS.fullmatch(cleaned):
+        return None
+    return _parse_compact_date(re.sub(r"\D", "", cleaned))
+
+
+def _split_joined(group: str) -> list[str]:
+    if len(group) != CPF_DIGITS + BIRTH_DIGITS:
+        return [group]
+    for cpf, birth in (
+        (group[:CPF_DIGITS], group[CPF_DIGITS:]),
+        (group[BIRTH_DIGITS:], group[:BIRTH_DIGITS]),
+    ):
+        if is_valid_cpf(cpf) and _parse_compact_date(birth):
+            return [cpf, birth]
+    return [group]
+
+
+def digit_groups(text: str) -> list[str]:
+    return [
+        piece
+        for group in re.findall(r"\d+", _SEPARATORS.sub("", text))
+        for piece in _split_joined(group)
+    ]
+
+
+def extract_credentials(text: str) -> Credentials:
+    cpf: str | None = None
+    birth: date | None = None
+    for group in digit_groups(text):
+        if cpf is None and len(group) == CPF_DIGITS and is_valid_cpf(group):
+            cpf = group
+        elif birth is None:
+            birth = _parse_compact_date(group)
+    return Credentials(cpf, birth)
 
 
 def register_failure(attempts: int) -> AuthOutcome:

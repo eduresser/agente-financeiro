@@ -1,6 +1,5 @@
 import re
 
-_CPF_IN_TEXT = re.compile(r"(?<!\d)(\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?!\d)")
 _NON_DIGITS = re.compile(r"\D")
 
 
@@ -20,11 +19,3 @@ def normalize_cpf(raw: str) -> str | None:
         return None
     digits = _NON_DIGITS.sub("", cleaned)
     return digits if is_valid_cpf(digits) else None
-
-
-def find_cpf(text: str) -> str | None:
-    for match in _CPF_IN_TEXT.finditer(text):
-        digits = _NON_DIGITS.sub("", match.group(1))
-        if is_valid_cpf(digits):
-            return digits
-    return None

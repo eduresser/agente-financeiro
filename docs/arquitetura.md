@@ -69,6 +69,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 | Decisão | Motivo |
 |---|---|
 | Três falhas seguidas encerram o atendimento (a primeira tentativa mais as duas novas do enunciado) | Segue o texto do enunciado, sem tentativa extra |
+| CPF e data são extraídos dos grupos de dígitos (11 e 8), ignorando espaços, pontos, traços e barras. A data aceita `DDMMAAAA` e `AAAAMMDD`, com ano entre 1900 e 2100; `MMDDAAAA` não é aceito | Tolera digitação irregular sem tentar adivinhar formatos ambíguos |
 | Falha de CPF e falha de data geram a mesma mensagem | Evita revelar qual dado está certo |
 | CPF com dígitos verificadores inválidos ou com formato ilegível conta como tentativa | Evita que erros de digitação ou testes de força bruta escapem do limite |
 | A autenticação não usa o modelo | Um texto do cliente ("já estou autenticado") não pode substituir a verificação |
@@ -117,7 +118,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 | Se o juiz falhar, a mensagem é bloqueada | Na dúvida, o sistema escolhe o lado seguro |
 | O juiz usa o mesmo tempo limite do modelo do atendimento (60 s, até 3 tentativas) | Quem administra escolhe um modelo rápido em `JUDGE_CHAT_MODEL`, sem um limite fixo próprio |
 | Sem `JUDGE_CHAT_MODEL`, o juiz usa o modelo do atendimento | Uma única chave basta para executar o projeto |
-| Pedido para encerrar a conversa vale a qualquer momento: nos agentes, pela ferramenta `end_conversation`; na autenticação e na triagem, por palavras-chave e classificação, com a mesma despedida | Triagem e autenticação não têm ferramentas, e a autenticação não usa o modelo. Encerrar durante o login não gasta tentativa |
+| Pedido para encerrar a conversa vale a qualquer momento: nos agentes, pela ferramenta `end_conversation`; na autenticação e na triagem, por classificação do modelo, com a mesma despedida | Triagem e autenticação não têm ferramentas. Na autenticação, o modelo só recebe mensagens sem nenhum número, nunca vê CPF nem data e só sugere: se falhar, o login continua. Encerrar durante o login não gasta tentativa |
 | Três bloqueios seguidos encerram o atendimento | Limita tentativas repetidas de manipulação |
 | Respostas com CPF, limite ou score de outro cliente são trocadas por uma resposta segura | Última barreira contra vazamento, mesmo que um agente erre |
 | Respostas não mencionam agentes, ferramentas nem transferências | Cumpre a regra de que o cliente percebe um único atendente |

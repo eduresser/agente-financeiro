@@ -76,14 +76,45 @@ def test_third_failure_ends_the_conversation_with_farewell() -> None:
     assert last_reply(state) == AUTH_LOCKED
 
 
+def intent(name: str) -> ScriptedChatModel:
+    return ScriptedChatModel(script=[ai(f'{{"intent": "{name}"}}')])
+
+
 @pytest.mark.parametrize("pending", [None, "12345678909"])
 def test_asking_to_end_during_login_closes_without_using_an_attempt(pending: str | None) -> None:
-    auth = make_auth_node(lookup)
-    state: GraphState = {"phase": "auth", "cpf_candidate": pending}
-    state = turn(auth, state, "quero encerrar")
+    auth = make_auth_node(lookup, intent("end"))
+    state = turn(auth, {"phase": "auth", "cpf_candidate": pending}, "pode fechar por aqui, valeu")
     assert state["phase"] == "ended"
     assert last_reply(state) == FAREWELL
     assert state.get("auth_attempts", 0) == 0
+
+
+def test_denying_the_wish_to_end_keeps_the_login_going() -> None:
+    auth = make_auth_node(lookup, intent("other"))
+    state = turn(auth, {"phase": "auth"}, "não quero encerrar, só errei o CPF")
+    assert state["phase"] == "auth"
+    assert last_reply(state) in {GREETING, ASK_CPF}
+
+
+def test_intent_model_failure_never_ends_the_conversation() -> None:
+    model = ScriptedChatModel(script=[RuntimeError("quota exceeded")])
+    state = turn(make_auth_node(lookup, model), {"phase": "auth"}, "quero encerrar")
+    assert state["phase"] == "auth"
+    assert state.get("auth_attempts", 0) == 0
+
+
+def test_model_never_sees_messages_that_carry_numbers() -> None:
+    model = ScriptedChatModel(script=[])
+    auth = make_auth_node(lookup, model)
+    state = turn(auth, {"phase": "auth"}, "meu cpf 123.456.789-09 e nasci em 17/05/1990")
+    state = turn(auth, {"phase": "auth"}, "123.456.789")
+    assert model.calls == 0 and state["phase"] == "auth"
+
+
+def test_both_values_typed_irregularly_in_one_sentence_authenticate() -> None:
+    auth = make_auth_node(lookup)
+    state = turn(auth, {"phase": "auth"}, "meu CPF é 123 456 789 09 e nasci em 17-05-1990")
+    assert state["customer_cpf"] == "12345678909"
 
 
 def test_short_cpf_counts_as_attempt_and_explains_format() -> None:

@@ -77,7 +77,7 @@ def build_graph(
     credit_service = CreditService(customers, bands, requests, clock)
     graph: StateGraph[Any, Any, Any, Any] = StateGraph(GraphState)
     _add(graph, "input_guard", make_input_guard_node(guardrail, clock))
-    _add(graph, "auth", make_auth_node(customers.birth_date_of))
+    _add(graph, "auth", make_auth_node(customers.birth_date_of, model))
     _add(graph, "triage", make_triage_node(model))
     _add(graph, "credit", make_credit_node(model, credit_service))
     _add(graph, "interview", make_interview_node(model, customers))

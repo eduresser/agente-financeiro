@@ -4,11 +4,11 @@ import pytest
 
 from banco_agil.domain.auth import (
     authenticate,
-    find_birth_date,
+    extract_credentials,
     parse_birth_date,
     register_failure,
 )
-from banco_agil.domain.cpf import find_cpf, normalize_cpf
+from banco_agil.domain.cpf import normalize_cpf
 
 CUSTOMERS = {"12345678909": date(1990, 5, 17)}
 
@@ -18,7 +18,7 @@ def lookup(cpf: str) -> date | None:
 
 
 @pytest.mark.parametrize("cpf", ["123.456.789-09", "12345678909", " 123.456.78909 "])
-@pytest.mark.parametrize("birth", ["17/05/1990", "1990-05-17"])
+@pytest.mark.parametrize("birth", ["17/05/1990", "1990-05-17", "17-05-1990", "17 05 1990"])
 def test_every_accepted_format_combination_authenticates(cpf: str, birth: str) -> None:
     outcome = authenticate(cpf, birth, lookup, attempts=0)
     assert outcome.status == "authenticated"
@@ -54,23 +54,44 @@ def test_success_on_last_attempt_still_authenticates() -> None:
     assert outcome.status == "authenticated"
 
 
-@pytest.mark.parametrize("raw", ["31/02/1990", "1990/05/17", "17-05-1990", "abc", ""])
+@pytest.mark.parametrize("raw", ["31/02/1990", "17/05/90", "05/17/1990", "abc", ""])
 def test_impossible_or_unknown_date_formats_are_rejected(raw: str) -> None:
     assert parse_birth_date(raw) is None
     assert authenticate("12345678909", raw, lookup, attempts=0).status == "retry"
 
 
-def test_values_are_found_inside_free_text() -> None:
-    assert find_cpf("meu cpf é 123.456.789-09, obrigado") == "12345678909"
-    assert find_birth_date("nasci em 17/05/1990") == "17/05/1990"
-    assert find_cpf("tenho 12345 reais") is None
-    assert find_cpf("1234567890912") is None
+@pytest.mark.parametrize(
+    "text",
+    [
+        "meu CPF é 123.456.789-09 e minha data de nascimento é 17-05-1990",
+        "12345678909 17051990",
+        "17/05/1990 123 456 789 09",
+        "cpf 123.456.78909, nasci em 1990/05/17",
+        "1234567890917051990",
+        "12345678909, 19900517",
+    ],
+)
+def test_irregular_typing_is_read_as_the_same_cpf_and_date(text: str) -> None:
+    found = extract_credentials(text)
+    assert found.cpf == "12345678909"
+    assert found.birth == date(1990, 5, 17)
+
+
+def test_each_value_is_found_alone_and_noise_is_ignored() -> None:
+    assert extract_credentials("meu cpf é 123.456.789-09, obrigado").cpf == "12345678909"
+    assert extract_credentials("nasci em 17 05 1990").birth == date(1990, 5, 17)
+    assert extract_credentials("tenho 12345 reais") == extract_credentials("oi")
+    assert extract_credentials("1234567890912").cpf is None
+
+
+def test_compact_year_first_date_is_not_misread_as_day_first() -> None:
+    assert extract_credentials("20101201").birth == date(2010, 12, 1)
 
 
 @pytest.mark.parametrize("cpf", ["123.456.789-00", "111.111.111-11", "529.982.247-24"])
 def test_cpf_with_wrong_check_digits_is_rejected_and_costs_an_attempt(cpf: str) -> None:
     assert normalize_cpf(cpf) is None
-    assert find_cpf(f"meu cpf {cpf}") is None
+    assert extract_credentials(f"meu cpf {cpf}").cpf is None
     assert authenticate(cpf, "17/05/1990", lookup, attempts=0).attempts == 1
 
 
