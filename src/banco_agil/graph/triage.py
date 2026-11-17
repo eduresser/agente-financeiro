@@ -17,18 +17,38 @@ from banco_agil.domain.cpf import find_cpf
 from banco_agil.graph.state import GraphState
 
 GREETING = "Olá! Eu sou o atendimento do Banco Ágil. Para começar, informe o seu CPF, por favor."
+ASK_CPF = "Para seguir com o atendimento, preciso primeiro do seu CPF. Pode informar, por favor?"
+ASK_CPF_VARIANTS = (
+    ASK_CPF,
+    "Antes de seguir, preciso confirmar a sua identidade. Qual é o seu CPF?",
+    "Para liberar o atendimento, informe o seu CPF, por favor.",
+)
 ASK_BIRTH_DATE = "Obrigado. Agora informe a sua data de nascimento (DD/MM/AAAA)."
 AUTH_RETRY = (
     "Não foi possível autenticar com os dados informados. "
     "Vamos tentar de novo: informe o seu CPF, por favor."
 )
+AUTH_RETRY_VARIANTS = (
+    AUTH_RETRY,
+    "Os dados ainda não conferem. Informe o seu CPF novamente, por favor, "
+    "e depois a data de nascimento.",
+)
 CPF_FORMAT_HELP = (
     "Não consegui ler o CPF. Ele precisa ter 11 dígitos, com ou sem pontos e traço. "
     "Informe o seu CPF, por favor."
 )
+CPF_FORMAT_HELP_VARIANTS = (
+    CPF_FORMAT_HELP,
+    "O CPF informado está incompleto. Digite os 11 números, por exemplo 123.456.789-09.",
+)
 BIRTH_FORMAT_HELP = (
     "Não consegui ler a data de nascimento. Use DD/MM/AAAA ou AAAA-MM-DD. "
     "Informe a data novamente, por favor."
+)
+BIRTH_FORMAT_HELP_VARIANTS = (
+    BIRTH_FORMAT_HELP,
+    "A data de nascimento não está num formato que eu consiga ler. "
+    "Digite no formato 17/05/1990, por favor.",
 )
 AUTH_LOCKED = (
     "Não foi possível autenticar o seu acesso e por isso vou encerrar o atendimento por aqui. "
@@ -66,6 +86,17 @@ def _last_human_text(messages: list[AnyMessage]) -> str:
     return ""
 
 
+def _pick(options: tuple[str, ...], index: int) -> str:
+    return options[min(index, len(options) - 1)]
+
+
+def _ask_cpf(state: GraphState) -> str:
+    replies = sum(1 for m in state.get("messages", []) if isinstance(m, AIMessage))
+    if replies == 0:
+        return GREETING
+    return ASK_CPF_VARIANTS[(replies - 1) % len(ASK_CPF_VARIANTS)]
+
+
 def _reply(text: str, **update: object) -> dict[str, object]:
     return {"messages": [AIMessage(content=text)], **update}
 
@@ -81,8 +112,10 @@ def make_auth_node(lookup: BirthLookup) -> Callable[[GraphState], dict[str, obje
         if candidate is None:
             if cpf_in_text is None:
                 if _looks_like_cpf_attempt(text):
-                    return _failure(attempts, CPF_FORMAT_HELP, keep_candidate=None)
-                return _reply(GREETING)
+                    return _failure(
+                        attempts, _pick(CPF_FORMAT_HELP_VARIANTS, attempts), keep_candidate=None
+                    )
+                return _reply(_ask_cpf(state))
             if birth_in_text is None:
                 return _reply(ASK_BIRTH_DATE, cpf_candidate=cpf_in_text)
             cpf, birth = cpf_in_text, birth_in_text
@@ -90,7 +123,9 @@ def make_auth_node(lookup: BirthLookup) -> Callable[[GraphState], dict[str, obje
             cpf = cpf_in_text or candidate
             birth = birth_in_text or text.strip()
             if parse_birth_date(birth) is None:
-                return _failure(attempts, BIRTH_FORMAT_HELP, keep_candidate=cpf)
+                return _failure(
+                    attempts, _pick(BIRTH_FORMAT_HELP_VARIANTS, attempts), keep_candidate=cpf
+                )
 
         outcome = authenticate(cpf, birth, lookup, attempts)
         if outcome.status == "authenticated":
@@ -102,7 +137,7 @@ def make_auth_node(lookup: BirthLookup) -> Callable[[GraphState], dict[str, obje
                 auth_attempts=0,
                 active_agent="triage",
             )
-        return _failure(attempts, AUTH_RETRY, keep_candidate=None)
+        return _failure(attempts, _pick(AUTH_RETRY_VARIANTS, attempts), keep_candidate=None)
 
     return auth_node
 

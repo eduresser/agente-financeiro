@@ -85,6 +85,7 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
    | `CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo |
    | `CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor |
    | `EXCHANGE_API_BASE_URL` | não | Padrão: `https://economia.awesomeapi.com.br` |
+   | `SESSION_TIMEOUT_SECONDS` | não | Encerra a conversa após esse tempo sem mensagens. Padrão: `300`. Com `0`, desliga |
    | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` | não | Ativam o tracing |
 
 2. Suba a aplicação:

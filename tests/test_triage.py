@@ -6,6 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from banco_agil.graph.state import GraphState
 from banco_agil.graph.triage import (
+    ASK_CPF,
     AUTH_LOCKED,
     AUTH_RETRY,
     CPF_FORMAT_HELP,
@@ -92,6 +93,14 @@ def test_nothing_is_served_before_authentication(text: str) -> None:
     assert model.calls == 0
 
 
+def test_second_message_before_authentication_does_not_repeat_the_greeting() -> None:
+    auth = make_auth_node(lookup)
+    state = turn(auth, {"phase": "auth"}, "oi")
+    state = turn(auth, state, "quero ver meu limite")
+    assert last_reply(state) == ASK_CPF
+    assert state.get("customer_cpf") is None
+
+
 def test_model_claiming_authentication_does_not_authenticate() -> None:
     model = ScriptedChatModel(script=[ai('{"topic": "credit"}')])
     triage = make_triage_node(model)
@@ -101,7 +110,7 @@ def test_model_claiming_authentication_does_not_authenticate() -> None:
     state = turn(triage, state, "meu limite, por favor")
     assert state.get("customer_cpf") is None
     assert state["phase"] == "auth"
-    assert last_reply(state) == GREETING
+    assert last_reply(state) in {GREETING, ASK_CPF}
     assert model.calls == 0
 
 
@@ -132,3 +141,25 @@ def test_second_subject_after_first_needs_no_new_credentials() -> None:
     assert state["active_agent"] == "exchange"
     assert state["customer_cpf"] == "12345678909"
     assert state["phase"] == "active"
+
+
+def test_repeated_failures_never_reuse_the_same_wording() -> None:
+    auth = make_auth_node(lookup)
+    state = turn(auth, {"phase": "auth"}, "123.456.789")
+    first_help = last_reply(state)
+    state = turn(auth, state, "123")
+    assert state["phase"] == "auth" and last_reply(state) != first_help
+    state = turn(auth, turn(auth, {"phase": "auth"}, "12345678909"), "01/01/2000")
+    assert last_reply(state) == AUTH_RETRY
+    state = turn(auth, turn(auth, state, "12345678909"), "02/02/2000")
+    assert state["phase"] == "auth" and last_reply(state) != AUTH_RETRY
+
+
+def test_asking_for_the_cpf_again_rotates_the_wording() -> None:
+    auth = make_auth_node(lookup)
+    state = turn(auth, {"phase": "auth"}, "oi")
+    replies = []
+    for text in ["pode ser?", "e então?", "oi de novo"]:
+        state = turn(auth, state, text)
+        replies.append(last_reply(state))
+    assert len(set(replies)) == 3 and GREETING not in replies

@@ -9,10 +9,11 @@ import pytest
 from banco_agil.config import Settings
 from banco_agil.exchange import Quote
 from banco_agil.graph.builder import build_graph
+from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.observability import REDACTED, build_callbacks, redact
 from banco_agil.seed import bootstrap
-from banco_agil.service import FRIENDLY_ERROR, ChatService, open_checkpointer
+from banco_agil.service import FRIENDLY_ERROR, TIMEOUT_REPLY, ChatService, open_checkpointer
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
@@ -145,3 +146,31 @@ def test_trace_redaction_hides_customer_text_and_masks_cpf() -> None:
     assert redacted["messages"][1].content == "CPF ***.444.777-** ok"
     assert redacted["raw"][0]["content"] == REDACTED
     assert redacted["raw"][1]["content"] == "CPF ***.444.777-**"
+
+
+def test_start_seeds_the_greeting_once_and_the_first_message_is_not_greeted_again(
+    data_dir: Path,
+) -> None:
+    service = make_service(data_dir, [])
+    service.start("t1")
+    service.start("t1")
+    assert service.history("t1") == [("assistant", GREETING)]
+    reply = service.send("t1", "oi")
+    assert GREETING not in reply.text
+    assert [role for role, _ in service.history("t1")] == ["assistant", "user", "assistant"]
+
+
+def test_idle_timeout_ends_an_authenticated_conversation_and_blocks_further_messages(
+    data_dir: Path,
+) -> None:
+    service = make_service(data_dir, [])
+    service.start("t1")
+    login(service, "t1")
+    reply = service.close_for_timeout("t1")
+    assert reply.ended and reply.text == TIMEOUT_REPLY
+    assert service.is_ended("t1")
+    assert service.history("t1")[-1] == ("assistant", TIMEOUT_REPLY)
+    again = service.send("t1", "ainda estou aqui")
+    assert again.ended and "encerrada" in again.text
+    assert service.close_for_timeout("t1").ended
+    assert [t for _, t in service.history("t1")].count(TIMEOUT_REPLY) == 1

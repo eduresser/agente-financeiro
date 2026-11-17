@@ -1,5 +1,7 @@
 from banco_agil.guardrails.base import (
+    BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
+    BLOCKED_INPUT_REPLY_REPEAT,
     CLOSING_REPLY,
     SAFE_OUTPUT_REPLY,
     GuardContext,
@@ -10,7 +12,9 @@ from banco_agil.guardrails.base import (
 from banco_agil.guardrails.local import LocalGuardrail, other_customers_patterns
 
 __all__ = [
+    "BLOCKED_INPUT_PLACEHOLDER",
     "BLOCKED_INPUT_REPLY",
+    "BLOCKED_INPUT_REPLY_REPEAT",
     "CLOSING_REPLY",
     "SAFE_OUTPUT_REPLY",
     "GuardContext",

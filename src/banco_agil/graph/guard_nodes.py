@@ -2,12 +2,14 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from banco_agil.graph.state import GraphState
 from banco_agil.guardrails import (
+    BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
+    BLOCKED_INPUT_REPLY_REPEAT,
     CLOSING_REPLY,
     SAFE_OUTPUT_REPLY,
     GuardContext,
@@ -65,7 +67,11 @@ def make_input_guard_node(
                 "phase": "ended",
             }
         return {
-            "messages": [AIMessage(content=BLOCKED_INPUT_REPLY)],
+            "messages": [
+                AIMessage(
+                    content=BLOCKED_INPUT_REPLY if streak == 1 else BLOCKED_INPUT_REPLY_REPEAT
+                )
+            ],
             "blocked_input": True,
             "blocked_streak": streak,
         }
@@ -78,12 +84,17 @@ def make_output_guard_node(
 ) -> Callable[[GraphState, RunnableConfig], dict[str, object]]:
     def output_guard(state: GraphState, config: RunnableConfig) -> dict[str, object]:
         thread_id = _thread_id(config)
-        context = GuardContext(state.get("customer_cpf"), thread_id)
+        user_text = "\n".join(
+            m.content
+            for m in state.get("messages", [])
+            if isinstance(m, HumanMessage) and isinstance(m.content, str)
+        )
+        context = GuardContext(state.get("customer_cpf"), thread_id, user_text)
         replaced: list[BaseMessage] = []
         for message in reversed(state.get("messages", [])):
             if isinstance(message, HumanMessage):
                 if state.get("blocked_input") and message.id:
-                    replaced.append(RemoveMessage(id=message.id))
+                    replaced.append(HumanMessage(content=BLOCKED_INPUT_PLACEHOLDER, id=message.id))
                 break
             if not isinstance(message, AIMessage) or not isinstance(message.content, str):
                 continue

@@ -64,7 +64,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 
 - O CPF aparece mascarado (`***.456.789-**`) em logs, eventos de bloqueio e traces.
 - O texto livre digitado pelo cliente não é registrado em logs nem enviado a traces.
-- Uma mensagem bloqueada é removida do histórico depois de gerar a resposta fixa.
+- Uma mensagem bloqueada é trocada por um marcador no histórico depois de gerar a resposta fixa. O texto original nunca chega aos agentes e a tela continua mostrando o balão do cliente.
 - Respostas com CPF, score ou limite de outro cliente são trocadas por uma resposta segura.
 
 ## Estratégia de testes

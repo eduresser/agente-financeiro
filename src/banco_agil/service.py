@@ -14,6 +14,7 @@ from langgraph.graph.state import CompiledStateGraph
 from banco_agil.config import Settings, get_settings
 from banco_agil.exchange import AwesomeApiProvider
 from banco_agil.graph.builder import build_graph
+from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.guardrails.judge import ModelJudge
 from banco_agil.llm import build_chat_model
@@ -32,6 +33,10 @@ logger = get_logger(__name__)
 FRIENDLY_ERROR = (
     "Tive um problema técnico agora e não consegui responder. "
     "Pode enviar a sua mensagem de novo em instantes?"
+)
+TIMEOUT_REPLY = (
+    "Estou encerrando o atendimento por inatividade. "
+    "Obrigado por procurar o Banco Ágil, e até a próxima!"
 )
 JUDGE_TIMEOUT_SECONDS = 10
 
@@ -54,9 +59,40 @@ class ChatService:
         self,
         graph: CompiledStateGraph[Any, Any, Any, Any],
         callbacks: Sequence[BaseCallbackHandler] = (),
+        idle_timeout: int = 0,
     ) -> None:
         self._graph = graph
         self._callbacks = list(callbacks)
+        self.idle_timeout = idle_timeout
+
+    def start(self, thread_id: str) -> None:
+        if self.history(thread_id):
+            return
+        self._append(thread_id, GREETING, {})
+
+    def close_for_timeout(self, thread_id: str) -> Reply:
+        if self.is_ended(thread_id):
+            return Reply(TIMEOUT_REPLY, ended=True)
+        self._append(
+            thread_id, TIMEOUT_REPLY, {"phase": "ended", "pending_limit": None, "interview": {}}
+        )
+        return Reply(TIMEOUT_REPLY, ended=self.is_ended(thread_id))
+
+    def _append(self, thread_id: str, text: str, extra: dict[str, Any]) -> None:
+        try:
+            self._graph.update_state(
+                self._config(thread_id),
+                {"messages": [AIMessage(content=text)], **extra},
+                as_node="output_guard",
+            )
+        except Exception as exc:
+            log_event(
+                logger,
+                "state_update_failed",
+                level=logging.ERROR,
+                thread=thread_id,
+                error=type(exc).__name__,
+            )
 
     def send(self, thread_id: str, text: str) -> Reply:
         config = self._config(thread_id)
@@ -139,14 +175,17 @@ def create_service(
     database = database or data_dir / "runtime" / "conversations.sqlite"
     bootstrap(data_dir)
     customers = CustomerRepository(data_dir / "clientes.csv")
+    bands = ScoreLimitRepository(data_dir / "score_limite.csv")
     judge = ModelJudge(build_chat_model(settings, request_timeout=JUDGE_TIMEOUT_SECONDS))
     graph = build_graph(
         model=build_chat_model(settings),
         customers=customers,
-        bands=ScoreLimitRepository(data_dir / "score_limite.csv"),
+        bands=bands,
         requests=LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv"),
         exchange=AwesomeApiProvider(settings.exchange_api_base_url),
-        guardrail=LocalGuardrail(judge=judge, protected=other_customers_patterns(customers)),
+        guardrail=LocalGuardrail(judge=judge, protected=other_customers_patterns(customers, bands)),
         checkpointer=open_checkpointer(database),
     )
-    return ChatService(graph, build_callbacks(settings))
+    return ChatService(
+        graph, build_callbacks(settings), idle_timeout=settings.session_timeout_seconds
+    )

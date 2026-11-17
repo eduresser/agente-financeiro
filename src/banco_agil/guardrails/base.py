@@ -4,6 +4,11 @@ from typing import Literal, Protocol
 BLOCKED_INPUT_REPLY = (
     "Não consegui processar essa mensagem. Pode reformular o que você precisa, por favor?"
 )
+BLOCKED_INPUT_REPLY_REPEAT = (
+    "Não posso ajudar com esse tipo de pedido. Posso atender você com o limite de crédito, "
+    "a atualização do score e a cotação de moedas."
+)
+BLOCKED_INPUT_PLACEHOLDER = "Mensagem não enviada: bloqueada pelo filtro de segurança."
 SAFE_OUTPUT_REPLY = (
     "Desculpe, não posso responder isso. Posso ajudar com o seu limite de crédito, "
     "a atualização do seu score e a cotação de moedas."
@@ -19,6 +24,7 @@ Direction = Literal["input", "output"]
 class GuardContext:
     customer_cpf: str | None = None
     thread_id: str = "unknown"
+    user_text: str = ""
 
 
 @dataclass(frozen=True)

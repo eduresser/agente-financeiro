@@ -73,10 +73,10 @@ def test_score_calculation_is_blocked_until_five_valid_answers(customers_path: P
     [
         ("monthly_income", "-100"),
         ("monthly_income", "muito"),
-        ("employment", "freelancer"),
+        ("employment", "astronauta"),
         ("fixed_expenses", "-1"),
         ("dependents", "1.5"),
-        ("dependents", "dois"),
+        ("dependents", "muitos"),
         ("has_debts", "talvez"),
     ],
 )
@@ -95,7 +95,7 @@ def test_invalid_answer_is_rejected_and_not_stored(
         session.record_answer(earlier, text)
     result = session.record_answer(field, bad)
     assert result["ok"] is False
-    assert result["repeat_question"]
+    assert result["ask_again_about"] and result["example_answer"]
     assert field not in session.answers
 
 
@@ -162,3 +162,38 @@ def test_agent_conducts_interview_through_tools_and_hands_back_to_credit(
     assert final["interview"]["score"] == 575  # type: ignore[index]
     assert "messages" not in final
     assert json.dumps(final["interview"])
+
+
+def test_natural_answers_are_stored_as_clean_values(customers_path: Path) -> None:
+    session = session_for(customers_path)
+    for field, text in [
+        ("monthly_income", "uns 8 mil por mês"),
+        ("employment", "CLT, carteira assinada"),
+        ("fixed_expenses", "R$ 2.000"),
+        ("dependents", "1 filho"),
+        ("has_debts", "não tenho"),
+    ]:
+        assert session.record_answer(field, text)["ok"] is True, field
+    assert session.answers == {
+        "monthly_income": "8000",
+        "employment": "FORMAL",
+        "fixed_expenses": "2000",
+        "dependents": 1,
+        "has_debts": False,
+    }
+
+
+def test_repeated_failures_on_one_question_advise_offering_a_pause(customers_path: Path) -> None:
+    session = session_for(customers_path)
+    first = session.record_answer("monthly_income", "muito")
+    second = session.record_answer("monthly_income", "bastante")
+    assert first["failed_attempts"] == 1 and "advice" not in first
+    assert second["failed_attempts"] == 2 and second["advice"]
+    assert session.snapshot()["failures"] == {"monthly_income": 2}
+
+
+def test_pending_field_tells_how_many_questions_are_left(customers_path: Path) -> None:
+    session = session_for(customers_path)
+    assert session.next_pending_field()["questions_left"] == 5
+    session.record_answer("monthly_income", "5000")
+    assert session.next_pending_field()["questions_left"] == 4

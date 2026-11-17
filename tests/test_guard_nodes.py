@@ -8,7 +8,9 @@ from langgraph.graph.message import add_messages
 from banco_agil.graph.guard_nodes import make_input_guard_node, make_output_guard_node
 from banco_agil.graph.state import GraphState
 from banco_agil.guardrails import (
+    BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
+    BLOCKED_INPUT_REPLY_REPEAT,
     CLOSING_REPLY,
     SAFE_OUTPUT_REPLY,
     GuardContext,
@@ -44,7 +46,7 @@ def test_third_consecutive_block_closes_the_conversation() -> None:
         state = say(state, INJECTION)
         state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
         replies.append(state["messages"][-1].content)
-    assert replies == [BLOCKED_INPUT_REPLY, BLOCKED_INPUT_REPLY, CLOSING_REPLY]
+    assert replies == [BLOCKED_INPUT_REPLY, BLOCKED_INPUT_REPLY_REPEAT, CLOSING_REPLY]
     assert state["phase"] == "ended"
     assert state["blocked_streak"] == 3
 
@@ -59,14 +61,15 @@ def test_a_normal_message_resets_the_streak() -> None:
     assert state["blocked_streak"] == 1
 
 
-def test_blocked_message_is_removed_from_history_and_agents_are_skipped() -> None:
+def test_blocked_message_is_replaced_by_a_placeholder_and_agents_are_skipped() -> None:
     guard = LocalGuardrail()
     state = say({"phase": "active"}, INJECTION)
     state = apply(state, make_input_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     state = apply(state, make_output_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     texts = [m.content for m in state["messages"]]
     assert INJECTION not in texts
-    assert texts == [BLOCKED_INPUT_REPLY]
+    assert texts == [BLOCKED_INPUT_PLACEHOLDER, BLOCKED_INPUT_REPLY]
+    assert [type(m).__name__ for m in state["messages"]] == ["HumanMessage", "AIMessage"]
     assert state["blocked_input"] is True
 
 

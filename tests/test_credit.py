@@ -72,11 +72,28 @@ def test_rejected_increase_keeps_limit_and_stores_the_request(data_dir: Path) ->
     assert CustomerRepository(data_dir / "clientes.csv").get(BRUNO).credit_limit == Decimal("1000")  # type: ignore[union-attr]
 
 
-@pytest.mark.parametrize("value", ["5000", "4000", "abc", "", "-100", "0"])
+@pytest.mark.parametrize("value", ["abc", "", "-100", "0"])
 def test_invalid_value_creates_no_request(data_dir: Path, value: str) -> None:
     decision = make_service(data_dir).request_increase(ANA, value)
     assert decision.status == "invalid"
     assert requests_rows(data_dir) == []
+
+
+@pytest.mark.parametrize("value", ["5000", "4000"])
+def test_value_equal_or_below_current_is_analysed_like_any_request(
+    data_dir: Path, value: str
+) -> None:
+    decision = make_service(data_dir).request_increase(ANA, value)
+    assert decision.status == "approved"
+    assert [r["novo_limite_solicitado"] for r in requests_rows(data_dir)] == [f"{value}.00"]
+
+
+def test_rejection_tells_the_ceiling_of_the_current_score(data_dir: Path) -> None:
+    decision = make_service(data_dir).request_increase(BRUNO, "30000")
+    assert decision.status == "rejected"
+    assert decision.ceiling == Decimal("1000.00")
+    assert "R$ 1.000,00" in decision.message
+    assert json.loads(decision.as_json())["max_allowed_limit"] == "1000.00"
 
 
 @pytest.mark.parametrize(
@@ -129,6 +146,14 @@ def test_tools_never_accept_a_cpf_and_only_touch_the_bound_customer(data_dir: Pa
     assert result["status"] == "approved"
     after = (data_dir / "clientes.csv").read_text(encoding="utf-8").splitlines()
     assert [i for i, (a, b) in enumerate(zip(before, after, strict=True)) if a != b] == [1]
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [("8 mil", "8000"), ("R$ 2,5 mil", "2500"), ("40k", "40000"), ("1,5 milhão", "1500000")],
+)
+def test_amounts_written_with_a_magnitude_word_are_scaled(text: str, expected: str) -> None:
+    assert parse_amount(text) == Decimal(expected)
 
 
 def test_amount_parsing_and_formatting() -> None:

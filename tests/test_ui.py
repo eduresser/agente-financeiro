@@ -4,7 +4,9 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from banco_agil.graph.triage import GREETING
 from banco_agil.service import Reply
+from banco_agil.ui.streamlit_app import idle_expired
 
 APP = Path(__file__).parent.parent / "src" / "banco_agil" / "ui" / "streamlit_app.py"
 
@@ -13,6 +15,10 @@ class StubService:
     def __init__(self) -> None:
         self.threads: dict[str, list[tuple[str, str]]] = {}
         self.ended: set[str] = set()
+        self.idle_timeout = 0
+
+    def start(self, thread_id: str) -> None:
+        self.threads.setdefault(thread_id, [("assistant", GREETING)])
 
     def send(self, thread_id: str, text: str) -> Reply:
         history = self.threads.setdefault(thread_id, [])
@@ -51,8 +57,30 @@ def test_ended_conversation_disables_input_and_new_conversation_starts_clean(
     app.button[0].click().run()
     assert app.session_state["thread_id"] != first_thread
     assert app.chat_input[0].disabled is False
-    assert len(app.chat_message) == 0
-    assert stub.history(app.session_state["thread_id"]) == []
+    assert [m.markdown[0].value for m in app.chat_message] == [GREETING]
+    assert stub.history(app.session_state["thread_id"]) == [("assistant", GREETING)]
+
+
+def test_new_conversation_opens_with_the_greeting(stub: StubService) -> None:
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    assert not app.exception
+    assert [m.markdown[0].value for m in app.chat_message] == [GREETING]
+    assert app.chat_input[0].disabled is False
+
+
+@pytest.mark.parametrize(
+    ("last", "timeout", "now", "expected"),
+    [
+        (None, 300, 10_000.0, False),
+        (100.0, 0, 10_000.0, False),
+        (100.0, 300, 399.9, False),
+        (100.0, 300, 400.0, True),
+    ],
+)
+def test_idle_expiry_boundaries(
+    last: float | None, timeout: int, now: float, expected: bool
+) -> None:
+    assert idle_expired(last, timeout, now) is expected
 
 
 def test_missing_configuration_shows_variable_names_without_crashing(

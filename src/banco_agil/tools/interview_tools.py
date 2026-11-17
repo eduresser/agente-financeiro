@@ -10,6 +10,7 @@ from banco_agil.domain.scoring import (
     Employment,
     InterviewAnswers,
     compute_score,
+    parse_dependents,
     parse_employment,
     parse_yes_no,
 )
@@ -21,21 +22,22 @@ logger = get_logger(__name__)
 
 FIELDS = ["monthly_income", "employment", "fixed_expenses", "dependents", "has_debts"]
 
-QUESTIONS = {
-    "monthly_income": "Qual é a sua renda mensal, em reais?",
-    "employment": "Qual é o seu tipo de emprego: formal, autônomo ou desempregado?",
-    "fixed_expenses": "Quanto você gasta por mês com despesas fixas, em reais?",
-    "dependents": "Quantos dependentes você tem?",
-    "has_debts": "Você possui dívidas ativas? Responda sim ou não.",
+TOPICS = {
+    "monthly_income": ("the customer's monthly income in reais", "5000 or 5 mil"),
+    "employment": ("the employment type: formal, autônomo or desempregado", "formal"),
+    "fixed_expenses": ("the monthly fixed expenses in reais", "2000"),
+    "dependents": ("the number of dependents", "2, or 0 for none"),
+    "has_debts": ("whether the customer has active debts (yes or no)", "sim or não"),
 }
 
 FORMAT_HELP = {
-    "monthly_income": "Informe um valor numérico igual ou maior que zero, por exemplo 5000.",
-    "employment": "Informe formal, autônomo ou desempregado.",
-    "fixed_expenses": "Informe um valor numérico igual ou maior que zero, por exemplo 2000.",
-    "dependents": "Informe um número inteiro igual ou maior que zero, por exemplo 2.",
-    "has_debts": "Responda apenas sim ou não.",
+    "monthly_income": "A number equal to or greater than zero.",
+    "employment": "formal, autônomo or desempregado (CLT, servidor, MEI and similar work).",
+    "fixed_expenses": "A number equal to or greater than zero.",
+    "dependents": "A whole number equal to or greater than zero.",
+    "has_debts": "A yes or no.",
 }
+HELP_AFTER_FAILURES = 2
 
 
 def _validate(field: str, text: str) -> object | None:
@@ -46,8 +48,7 @@ def _validate(field: str, text: str) -> object | None:
         employment = parse_employment(text)
         return employment.name if employment is not None else None
     if field == "dependents":
-        cleaned = text.strip()
-        return int(cleaned) if cleaned.isdigit() else None
+        return parse_dependents(text)
     return parse_yes_no(text)
 
 
@@ -60,6 +61,7 @@ class InterviewSession:
         saved = saved or {}
         self.answers: dict[str, object] = dict(saved.get("answers", {}))
         self.score: int | None = saved.get("score")
+        self.failures: dict[str, int] = dict(saved.get("failures", {}))
         self.abandoned = False
 
     @property
@@ -67,12 +69,19 @@ class InterviewSession:
         return self.score is not None
 
     def snapshot(self) -> dict[str, Any]:
-        return {"answers": dict(self.answers), "score": self.score}
+        return {"answers": dict(self.answers), "score": self.score, "failures": dict(self.failures)}
 
     def next_pending_field(self) -> dict[str, object]:
         for field in FIELDS:
             if field not in self.answers:
-                return {"field": field, "question": QUESTIONS[field]}
+                topic, example = TOPICS[field]
+                remaining = sum(1 for f in FIELDS if f not in self.answers)
+                return {
+                    "field": field,
+                    "ask_about": topic,
+                    "example_answer": example,
+                    "questions_left": remaining,
+                }
         return {"done": True}
 
     def record_answer(self, field: str, answer: str) -> dict[str, object]:
@@ -81,11 +90,17 @@ class InterviewSession:
             return {"ok": False, "error": "Wrong order.", "next": pending}
         value = _validate(field, answer)
         if value is None:
-            return {
+            self.failures[field] = self.failures.get(field, 0) + 1
+            result: dict[str, object] = {
                 "ok": False,
-                "error": FORMAT_HELP[field],
-                "repeat_question": QUESTIONS[field],
+                "expected": FORMAT_HELP[field],
+                "ask_again_about": TOPICS[field][0],
+                "example_answer": TOPICS[field][1],
+                "failed_attempts": self.failures[field],
             }
+            if self.failures[field] >= HELP_AFTER_FAILURES:
+                result["advice"] = "Offer to pause or stop the interview instead of asking again."
+            return result
         self.answers[field] = value
         return {"ok": True, "next": self.next_pending_field()}
 

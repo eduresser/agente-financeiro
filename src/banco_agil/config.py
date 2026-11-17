@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     chat_model_api_key: str = Field(min_length=1, repr=False)
     chat_model_base_url: str | None = None
     exchange_api_base_url: str = "https://economia.awesomeapi.com.br"
+    session_timeout_seconds: int = Field(default=300, ge=0)
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = Field(default=None, repr=False)
     langfuse_host: str | None = None

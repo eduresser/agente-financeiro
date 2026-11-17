@@ -1,48 +1,100 @@
 import logging
 import re
 from collections.abc import Callable, Iterable
+from decimal import Decimal
 
-from banco_agil.domain.credit_rules import format_brl
 from banco_agil.guardrails.base import ALLOWED, Direction, GuardContext, GuardResult, Judge
 from banco_agil.guardrails.rules import (
     INTERNAL_MARKERS,
+    Protected,
     advice_or_promise_present,
     agent_mention_present,
     classify_input,
+    external_link_present,
     foreign_cpf_present,
     internal_leak_present,
     protected_pattern_present,
 )
 from banco_agil.logging_utils import get_logger
-from banco_agil.storage import CustomerRepository, StorageError
+from banco_agil.storage import CustomerRepository, ScoreLimitRepository, StorageError
 
 logger = get_logger(__name__)
 
-ProtectedPatterns = Callable[[str | None], Iterable[re.Pattern[str]]]
+ProtectedPatterns = Callable[[str | None], Iterable[Protected | re.Pattern[str]]]
+
+_NAME_MIN_LENGTH = 4
 
 
-def no_protected_patterns(cpf: str | None) -> Iterable[re.Pattern[str]]:
+def no_protected_patterns(cpf: str | None) -> Iterable[Protected | re.Pattern[str]]:
     return ()
 
 
-def other_customers_patterns(customers: CustomerRepository) -> ProtectedPatterns:
-    def patterns(cpf: str | None) -> list[re.Pattern[str]]:
+def _typed_amount_pattern(value: Decimal) -> re.Pattern[str]:
+    whole = int(value)
+    number = "(?:" + "|".join({re.escape(f"{whole:,}".replace(",", ".")), str(whole)}) + ")"
+    forms = [rf"(?<![\d.,]){number}(?:,\d{{2}})?(?!\d)"]
+    if whole >= 1000 and whole % 1000 == 0:
+        forms.append(rf"(?<!\d){whole // 1000}\s*mil\b")
+    return re.compile("|".join(forms), re.IGNORECASE)
+
+
+def _amount_pattern(value: Decimal) -> re.Pattern[str]:
+    whole = int(value)
+    number = "(?:" + "|".join({re.escape(f"{whole:,}".replace(",", ".")), str(whole)}) + ")"
+    cents = r"(?:,\d{2})?"
+    forms = [rf"R\$\s*{number}{cents}(?!\d)", rf"(?<![\d.,]){number}{cents}\s+reais\b"]
+    if whole >= 1000 and whole % 1000 == 0:
+        mil = rf"{whole // 1000}\s*mil"
+        forms += [rf"R\$\s*{mil}\b", rf"(?<!\d){mil}\s+reais\b"]
+    return re.compile("|".join(forms), re.IGNORECASE)
+
+
+def _score_pattern(score: int) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?:score|pontua[cç][ãa]o|pontos?|nota)\D{{0,25}}{score}(?!\d)"
+        rf"|(?<![\d.,]){score}\s+pontos\b",
+        re.IGNORECASE,
+    )
+
+
+def _ceiling_of(bands: ScoreLimitRepository, score: int) -> int | None:
+    try:
+        return int(bands.max_limit_for(score))
+    except StorageError:
+        return None
+
+
+def other_customers_patterns(
+    customers: CustomerRepository, bands: ScoreLimitRepository | None = None
+) -> ProtectedPatterns:
+    def patterns(cpf: str | None) -> list[Protected]:
         try:
             everyone = customers.all()
         except StorageError:
             return []
         own = next((c for c in everyone if c.cpf == cpf), None)
-        own_limit = format_brl(own.credit_limit) if own else None
+        own_limit = int(own.credit_limit) if own else None
+        own_ceiling = _ceiling_of(bands, own.score) if own and bands else None
         own_score = own.score if own else None
-        found: list[re.Pattern[str]] = []
+        own_first = own.name.split()[0].lower() if own and own.name else None
+        found: list[Protected] = []
         for customer in everyone:
             if customer.cpf == cpf:
                 continue
-            limit_text = format_brl(customer.credit_limit)
-            if limit_text != own_limit:
-                found.append(re.compile(re.escape(limit_text)))
+            if int(customer.credit_limit) not in (own_limit, own_ceiling):
+                found.append(
+                    Protected(
+                        _amount_pattern(customer.credit_limit),
+                        user_pattern=_typed_amount_pattern(customer.credit_limit),
+                    )
+                )
             if customer.score != own_score:
-                found.append(re.compile(rf"score\D{{0,20}}{customer.score}(?!\d)", re.IGNORECASE))
+                found.append(Protected(_score_pattern(customer.score)))
+            if customer.name:
+                found.append(Protected(re.compile(rf"\b{re.escape(customer.name)}\b", re.I), False))
+                first = customer.name.split()[0]
+                if len(first) >= _NAME_MIN_LENGTH and first.lower() != own_first:
+                    found.append(Protected(re.compile(rf"\b{re.escape(first)}\b", re.I), False))
         return found
 
     return patterns
@@ -69,9 +121,11 @@ class LocalGuardrail:
 
     def check_output(self, text: str, context: GuardContext) -> GuardResult:
         if foreign_cpf_present(text, context.customer_cpf) or protected_pattern_present(
-            text, self._protected(context.customer_cpf)
+            text, self._protected(context.customer_cpf), context.user_text
         ):
             return GuardResult(False, "foreign_data")
+        if external_link_present(text):
+            return GuardResult(False, "external_link")
         if advice_or_promise_present(text):
             return GuardResult(False, "out_of_scope_content")
         if internal_leak_present(text, self._markers):

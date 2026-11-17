@@ -6,13 +6,13 @@ from langchain_core.messages import AIMessage
 from banco_agil.exchange import ExchangeRateProvider
 from banco_agil.graph.agent_loop import run_tool_loop
 from banco_agil.graph.state import GraphState
+from banco_agil.graph.style import STYLE_GUIDE
 from banco_agil.tools.exchange_tools import build_exchange_tools
 from banco_agil.tools.session_tools import END_RULE, SessionTurn, build_session_tools
 
 EXCHANGE_PROMPT = (
     "You give currency exchange rates to a digital bank customer. Always answer in "
-    "Brazilian Portuguese, in a friendly and brief tone.\n"
-    "Rules:\n"
+    "Brazilian Portuguese.\n" + STYLE_GUIDE + "Rules:\n"
     "- Every rate must come from get_exchange_rate. Never state a rate from memory.\n"
     "- Pass the currency exactly as the customer wrote it. Without a currency, call the "
     "tool with no currency.\n"

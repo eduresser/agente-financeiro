@@ -8,7 +8,7 @@ from typing import Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.credit_rules import format_brl, is_approved, is_increase, parse_amount
+from banco_agil.domain.credit_rules import format_brl, is_approved, parse_amount
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.storage import (
     CustomerRepository,
@@ -29,6 +29,7 @@ class LimitDecision:
     message: str
     requested: Decimal | None = None
     current: Decimal | None = None
+    ceiling: Decimal | None = None
 
     def as_json(self) -> str:
         return json.dumps(
@@ -36,6 +37,7 @@ class LimitDecision:
                 "status": self.status,
                 "message": self.message,
                 "requested_limit": str(self.requested) if self.requested is not None else None,
+                "max_allowed_limit": str(self.ceiling) if self.ceiling is not None else None,
             },
             ensure_ascii=False,
         )
@@ -75,14 +77,8 @@ class CreditService:
             customer = self._customers.get(cpf)
             if customer is None:
                 raise StorageError("authenticated customer not found")
-            if not is_increase(customer.credit_limit, amount):
-                return LimitDecision(
-                    "invalid",
-                    "O novo limite precisa ser maior que o limite atual. Informe outro valor.",
-                    amount,
-                    customer.credit_limit,
-                )
-            approved = is_approved(amount, self._bands.max_limit_for(customer.score))
+            ceiling = self._bands.max_limit_for(customer.score)
+            approved = is_approved(amount, ceiling)
             self._requests.append(
                 LimitRequest(
                     cpf,
@@ -103,12 +99,15 @@ class CreditService:
                 f"Aumento aprovado. O novo limite é {format_brl(amount)}.",
                 amount,
                 customer.credit_limit,
+                ceiling,
             )
         return LimitDecision(
             "rejected",
-            "Aumento rejeitado: o score atual não permite esse limite.",
+            "Aumento rejeitado: o score atual não permite esse limite. "
+            f"Para o score atual, o limite máximo é {format_brl(ceiling)}.",
             amount,
             customer.credit_limit,
+            ceiling,
         )
 
 

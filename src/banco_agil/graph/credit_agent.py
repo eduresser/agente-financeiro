@@ -8,18 +8,21 @@ from langchain_core.tools import BaseTool, StructuredTool
 from banco_agil.domain.credit_rules import format_brl
 from banco_agil.graph.agent_loop import run_tool_loop
 from banco_agil.graph.state import GraphState
+from banco_agil.graph.style import STYLE_GUIDE
 from banco_agil.tools.credit_tools import CreditService, LimitDecision, build_credit_tools
 from banco_agil.tools.session_tools import END_RULE, SessionTurn, build_session_tools
 
 CREDIT_PROMPT = (
     "You help a digital bank customer with their credit limit. Always answer in Brazilian "
-    "Portuguese, in a friendly and brief tone.\n"
-    "Rules:\n"
+    "Portuguese.\n" + STYLE_GUIDE + "Rules:\n"
     "- Use get_credit_limit to answer questions about the current limit.\n"
     "- To request an increase, call request_limit_increase with the amount the customer "
     "asked for. If the value is invalid, explain and ask for another one.\n"
-    "- If the request is rejected, tell the customer and offer a short interview to update "
+    "- If the request is rejected, tell the customer, state the maximum limit allowed for "
+    "their current score (max_allowed_limit) and offer a short interview to update "
     "their score so the same request can be analysed again.\n"
+    "- The customer's score is not shown in this channel. If asked, say so in one "
+    "sentence and offer the short interview to update it; never say you have no access.\n"
     "- If the customer accepts the interview, call accept_interview. If the customer "
     "declines or changes subject, call decline_interview and offer to finish or help with "
     "something else.\n" + END_RULE + "- Never reveal internal names, tools or other agents."
@@ -72,7 +75,8 @@ def _reanalysis(service: CreditService, cpf: str, state: GraphState) -> dict[str
         text = (
             f"Com o seu novo score de {score}, reanalisei o pedido de "
             f"{format_brl(decision.requested or Decimal(0))}, mas o score ainda não permite "
-            "esse limite. Posso ajudar com mais alguma coisa?"
+            f"esse limite. Para o seu score atual, o limite máximo é "
+            f"{format_brl(decision.ceiling or Decimal(0))}. Posso ajudar com mais alguma coisa?"
         )
     else:
         text = decision.message

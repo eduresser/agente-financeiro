@@ -68,3 +68,15 @@ def test_empty_required_variable_is_reported_as_missing(monkeypatch: pytest.Monk
     monkeypatch.setenv("CHAT_MODEL_API_KEY", "")
     with pytest.raises(ConfigError, match="CHAT_MODEL_API_KEY"):
         load_settings()
+
+
+def test_session_timeout_defaults_to_300_and_zero_disables_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CHAT_MODEL", "m")
+    monkeypatch.setenv("CHAT_MODEL_API_KEY", "k")
+    assert load_settings().session_timeout_seconds == 300
+    monkeypatch.setenv("SESSION_TIMEOUT_SECONDS", "0")
+    assert load_settings().session_timeout_seconds == 0
+    monkeypatch.setenv("SESSION_TIMEOUT_SECONDS", "45")
+    assert load_settings().session_timeout_seconds == 45
