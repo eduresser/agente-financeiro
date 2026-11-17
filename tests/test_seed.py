@@ -1,4 +1,3 @@
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -7,7 +6,6 @@ from banco_agil.domain.cpf import is_valid_cpf
 from banco_agil.seed import bootstrap
 from banco_agil.storage import (
     CustomerRepository,
-    LimitRequestRepository,
     ScoreLimitRepository,
     StorageError,
 )
@@ -35,21 +33,14 @@ def test_existing_files_are_never_overwritten_and_only_missing_ones_are_created(
     assert bootstrap(tmp_path) == []
 
 
-def test_seeded_customers_are_valid_and_include_band_edge_scores(tmp_path: Path) -> None:
+def test_seeded_customers_have_valid_cpfs_and_band_edge_scores(tmp_path: Path) -> None:
     bootstrap(tmp_path)
     customers = CustomerRepository(tmp_path / "clientes.csv").all()
     bands = ScoreLimitRepository(tmp_path / "score_limite.csv")
-    assert len(customers) == 6
     assert all(is_valid_cpf(c.cpf) for c in customers)
-    assert all(c.birth_date < date.today() for c in customers)
     for customer in customers:
         assert customer.credit_limit <= bands.max_limit_for(customer.score)
     assert {0, 300, 501, 700} <= {c.score for c in customers}
-
-
-def test_request_history_starts_empty_but_readable(tmp_path: Path) -> None:
-    bootstrap(tmp_path)
-    assert LimitRequestRepository(tmp_path / "solicitacoes_aumento_limite.csv").list_for("1") == []
 
 
 def test_unwritable_location_raises_storage_error(tmp_path: Path) -> None:

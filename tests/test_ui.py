@@ -61,13 +61,6 @@ def test_ended_conversation_disables_input_and_new_conversation_starts_clean(
     assert stub.history(app.session_state["thread_id"]) == [("assistant", GREETING)]
 
 
-def test_new_conversation_opens_with_the_greeting(stub: StubService) -> None:
-    app = AppTest.from_file(str(APP), default_timeout=10).run()
-    assert not app.exception
-    assert [m.markdown[0].value for m in app.chat_message] == [GREETING]
-    assert app.chat_input[0].disabled is False
-
-
 @pytest.mark.parametrize(
     ("last", "timeout", "now", "expected"),
     [

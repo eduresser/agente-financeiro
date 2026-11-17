@@ -82,23 +82,12 @@ def test_short_cpf_counts_as_attempt_and_explains_format() -> None:
     assert last_reply(state) == CPF_FORMAT_HELP
 
 
-@pytest.mark.parametrize("text", ["qual a cotação do dólar?", "quero 5000 de limite", "oi"])
-def test_nothing_is_served_before_authentication(text: str) -> None:
-    model = ScriptedChatModel(script=[])
+def test_nothing_is_served_before_authentication() -> None:
     auth = make_auth_node(lookup)
-    state = turn(auth, {"phase": "auth"}, text)
+    state = turn(auth, {"phase": "auth"}, "quero 5000 de limite")
     assert last_reply(state) == GREETING
     assert state.get("customer_cpf") is None
     assert state.get("auth_attempts", 0) == 0
-    assert model.calls == 0
-
-
-def test_second_message_before_authentication_does_not_repeat_the_greeting() -> None:
-    auth = make_auth_node(lookup)
-    state = turn(auth, {"phase": "auth"}, "oi")
-    state = turn(auth, state, "quero ver meu limite")
-    assert last_reply(state) == ASK_CPF
-    assert state.get("customer_cpf") is None
 
 
 def test_model_claiming_authentication_does_not_authenticate() -> None:

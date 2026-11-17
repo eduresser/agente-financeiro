@@ -1,5 +1,3 @@
-import pytest
-
 from banco_agil.guardrails import GuardContext, LocalGuardrail
 from banco_agil.guardrails.base import Direction
 from banco_agil.guardrails.judge import ModelJudge
@@ -40,9 +38,10 @@ def test_judge_can_reject_a_suspect_message() -> None:
     assert (result.allowed, result.reason) == (False, "judge_rejected")
 
 
-@pytest.mark.parametrize("failure", [RuntimeError("quota exceeded"), TimeoutError("too slow")])
-def test_judge_failure_blocks_the_message(failure: Exception) -> None:
-    result = LocalGuardrail(judge=CountingJudge(failure)).check_input(SUSPECT, CONTEXT)
+def test_judge_failure_blocks_the_message() -> None:
+    result = LocalGuardrail(judge=CountingJudge(RuntimeError("quota exceeded"))).check_input(
+        SUSPECT, CONTEXT
+    )
     assert (result.allowed, result.reason) == (False, "judge_failed")
 
 

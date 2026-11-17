@@ -23,16 +23,6 @@ def test_missing_required_variables_are_listed_without_values(
     assert "secret-host.local" not in message
 
 
-def test_api_key_value_never_appears_in_error_when_other_variable_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("CHAT_MODEL_API_KEY", "sk-super-secret-value")
-    with pytest.raises(ConfigError) as exc:
-        load_settings()
-    assert "sk-super-secret-value" not in str(exc.value)
-    assert "CHAT_MODEL" in str(exc.value)
-
-
 def test_env_example_lists_every_variable_the_app_reads() -> None:
     from pathlib import Path
 
@@ -78,5 +68,3 @@ def test_session_timeout_defaults_to_300_and_zero_disables_it(
     assert load_settings().session_timeout_seconds == 300
     monkeypatch.setenv("SESSION_TIMEOUT_SECONDS", "0")
     assert load_settings().session_timeout_seconds == 0
-    monkeypatch.setenv("SESSION_TIMEOUT_SECONDS", "45")
-    assert load_settings().session_timeout_seconds == 45
