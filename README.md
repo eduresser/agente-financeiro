@@ -180,7 +180,7 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
 
    | Variável | Obrigatória | Para quê |
    |---|---|---|
-   | `CHAT_MODEL` | sim | Identificador do modelo no formato do LiteLLM. Exemplo: `gemini/gemini-4-argon` |
+   | `CHAT_MODEL` | sim | Identificador do modelo no formato do LiteLLM. Exemplo: `gemini/gemini-flash-latest` |
    | `CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo. Para o Gemini, gere em <https://ai.google.dev/gemini-api/docs/api-key> |
    | `CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor |
    | `JUDGE_CHAT_MODEL` | sim | Modelo dos guardrails (juiz), diferente do modelo do atendimento, no formato do LiteLLM |
