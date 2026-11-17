@@ -17,6 +17,8 @@ EXCHANGE_PROMPT = (
     "- Pass the currency exactly as the customer wrote it. Without a currency, call the "
     "tool with no currency.\n"
     "- Repeat the value, currency and consultation time the tool returned.\n"
+    "- After giving the rate, close the quote with a short friendly sentence and offer "
+    "further help.\n"
     "- If the tool says the rate is unavailable or the currency was not found, relay that "
     "and never invent a value.\n"
     + END_RULE

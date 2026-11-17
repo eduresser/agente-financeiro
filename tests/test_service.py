@@ -117,7 +117,13 @@ def test_observability_is_off_without_keys_and_conversation_still_works(
 ) -> None:
     for name in ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_HOST"):
         monkeypatch.delenv(name, raising=False)
-    settings = Settings(chat_model="x/y", chat_model_api_key="k-12345678", _env_file=None)  # type: ignore[call-arg]
+    settings = Settings(
+        chat_model="x/y",
+        chat_model_api_key="k-12345678",
+        judge_chat_model="x/j",
+        judge_chat_model_api_key="k-12345678",
+        _env_file=None,
+    )  # type: ignore[call-arg]
     assert build_callbacks(settings) == []
     service = make_service(data_dir, [])
     with caplog.at_level(logging.WARNING):

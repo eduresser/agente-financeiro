@@ -17,7 +17,7 @@ from banco_agil.graph.builder import build_graph
 from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.guardrails.judge import ModelJudge
-from banco_agil.llm import build_chat_model
+from banco_agil.llm import build_chat_model, build_judge_model
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.observability import build_callbacks
 from banco_agil.seed import bootstrap
@@ -176,7 +176,7 @@ def create_service(
     bootstrap(data_dir)
     customers = CustomerRepository(data_dir / "clientes.csv")
     bands = ScoreLimitRepository(data_dir / "score_limite.csv")
-    judge = ModelJudge(build_chat_model(settings, request_timeout=JUDGE_TIMEOUT_SECONDS))
+    judge = ModelJudge(build_judge_model(settings, request_timeout=JUDGE_TIMEOUT_SECONDS))
     graph = build_graph(
         model=build_chat_model(settings),
         customers=customers,

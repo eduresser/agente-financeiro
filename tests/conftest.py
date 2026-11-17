@@ -6,6 +6,14 @@ from typing import Any
 
 import pytest
 
+for _name, _value in {
+    "CHAT_MODEL": "test/chat-model",
+    "CHAT_MODEL_API_KEY": "test-key",
+    "JUDGE_CHAT_MODEL": "test/judge-model",
+    "JUDGE_CHAT_MODEL_API_KEY": "test-key",
+}.items():
+    os.environ.setdefault(_name, _value)
+
 _LINE = re.compile(r"^(?P<key>\S+::\S+)\s+(?P<tags>(?:@\w+:[A-Z]+-\d+\s*)+)$")
 
 

@@ -35,6 +35,17 @@ flowchart LR
     GO --> U[Cliente]
 ```
 
+### Agentes e dados
+
+| Agente | Função | Dados que lê e grava |
+|---|---|---|
+| Triagem | Saúda, coleta CPF e data de nascimento, autentica (em código) e encaminha pelo assunto | Lê `clientes.csv` |
+| Crédito | Consulta o limite, analisa e registra pedidos de aumento, oferece a entrevista após uma rejeição | Lê `clientes.csv` e `score_limite.csv`; grava `solicitacoes_aumento_limite.csv` e, quando aprovado, o limite em `clientes.csv` |
+| Entrevista de crédito | Faz as cinco perguntas, calcula o score e devolve o cliente ao crédito | Grava o score em `clientes.csv` |
+| Câmbio | Consulta a cotação de uma moeda e fecha a consulta com cordialidade | Consulta a API externa; não usa arquivos |
+
+Todos os arquivos ficam em `data/` e são alterados por repositórios próprios, com gravação atômica. O estado da conversa (CPF autenticado, agente ativo, pedido pendente, respostas da entrevista) fica no grafo e é salvo em SQLite.
+
 Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 
 ## Funcionalidades
@@ -131,13 +142,31 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 | Tema | Escolha | Motivo |
 |---|---|---|
 | Orquestração | LangGraph, grafo único | Estado compartilhado e roteamento explícito entre agentes |
-| Modelo | LiteLLM com `CHAT_MODEL`, `CHAT_MODEL_API_KEY`, `CHAT_MODEL_BASE_URL` | Trocar de provedor só por configuração |
+| Modelo | LiteLLM com `CHAT_MODEL_*` para o atendimento e `JUDGE_CHAT_MODEL_*` para o juiz dos guardrails | Trocar de provedor só por configuração; o juiz pode ser um modelo distinto, mais barato ou independente |
 | Dados de negócio | CSV com gravação atômica | Simples de inspecionar e suficiente para o escopo |
 | Conversa | SQLite (checkpointer do LangGraph) | Continuidade sem infraestrutura extra |
 | Câmbio | AwesomeAPI, valor de compra (`bid`) | Sem chave e com horário da cotação |
 | Interface | Streamlit | Tela de conversa simples para testar o fluxo completo |
 | Observabilidade | Langfuse, opcional | Traces com CPF mascarado e sem o texto do cliente |
 | Testes | pytest com modelo falso roteirizado e HTTP simulado | Executa código real e só mocka dependências externas |
+
+## Estrutura do código
+
+```text
+src/banco_agil/
+├── domain/       Regras puras: CPF, autenticação, regras de crédito e fórmula do score
+├── storage/      Repositórios CSV com gravação atômica
+├── graph/        Estado, nós de cada agente, guardrails e montagem do grafo
+├── tools/        Ferramentas de cada agente, com o CPF já injetado por código
+├── exchange/     Interface de cotação e cliente da API de câmbio
+├── guardrails/   Interface, regras locais e modelo juiz
+├── seed/         Criação dos dados de teste na primeira execução
+├── ui/           Tela Streamlit
+├── service.py    Ponto de entrada da conversa: persistência e tratamento de erros
+├── config.py     Variáveis de ambiente
+└── llm.py        Fábrica dos modelos (atendimento e juiz)
+tests/            Testes de regras, agentes, guardrails, armazenamento e tela
+```
 
 ## Como executar
 
@@ -151,9 +180,12 @@ Requisitos: Docker com Compose, ou Python 3.12 com [uv](https://docs.astral.sh/u
 
    | Variável | Obrigatória | Para quê |
    |---|---|---|
-   | `CHAT_MODEL` | sim | Identificador do modelo no formato do LiteLLM |
-   | `CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo |
+   | `CHAT_MODEL` | sim | Identificador do modelo no formato do LiteLLM. Exemplo: `gemini/gemini-4-argon` |
+   | `CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo. Para o Gemini, gere em <https://ai.google.dev/gemini-api/docs/api-key> |
    | `CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor |
+   | `JUDGE_CHAT_MODEL` | sim | Modelo dos guardrails (juiz), diferente do modelo do atendimento, no formato do LiteLLM |
+   | `JUDGE_CHAT_MODEL_API_KEY` | sim | Chave do provedor do modelo juiz |
+   | `JUDGE_CHAT_MODEL_BASE_URL` | não | Endereço alternativo do provedor do juiz |
    | `EXCHANGE_API_BASE_URL` | não | Padrão: `https://economia.awesomeapi.com.br` |
    | `SESSION_TIMEOUT_SECONDS` | não | Encerra a conversa após esse tempo sem mensagens. Padrão: `300`. Com `0`, desliga |
    | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST` | não | Ativam o tracing |
@@ -186,6 +218,18 @@ Todos os dados são fictícios.
 Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos. A pasta não é versionada.
 
 Para voltar ao estado inicial, pare a aplicação e apague a pasta: `rm -r data`. Os arquivos ficam em `data/`, incluindo `data/solicitacoes_aumento_limite.csv` e o banco de conversas em `data/runtime/`.
+
+### Roteiro de teste manual
+
+Com os clientes acima, três conversas cobrem o atendimento completo. Use "Nova conversa" entre elas.
+
+1. **Aumento rejeitado, entrevista e aprovação** (Bruno Lima)
+   1. Informe o CPF `529.982.247-25` e a data `02/11/1985`.
+   2. Peça aumento do limite para R$ 3.000. O score é 300, o teto da faixa é R$ 1.000, então o pedido é rejeitado e a entrevista é oferecida.
+   3. Aceite e responda: renda de R$ 5.000, emprego formal, despesas de R$ 2.000, nenhum dependente e nenhuma dívida. O score novo é 575.
+   4. O pedido de R$ 3.000 é reanalisado e aprovado. Confira `data/clientes.csv` (limite e score) e `data/solicitacoes_aumento_limite.csv` (duas linhas: rejeitado e aprovado).
+2. **Falha de autenticação**: informe CPF e data que não conferem três vezes seguidas. O atendimento é encerrado com uma despedida educada.
+3. **Câmbio e encerramento** (Ana Souza, CPF `111.444.777-35`, nascimento `17/05/1990`): pergunte a cotação do dólar, depois a do euro, e peça para encerrar.
 
 ### Testes e qualidade
 
