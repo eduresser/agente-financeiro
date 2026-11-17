@@ -77,6 +77,14 @@ class CreditService:
             customer = self._customers.get(cpf)
             if customer is None:
                 raise StorageError("authenticated customer not found")
+            if amount <= customer.credit_limit:
+                return LimitDecision(
+                    "invalid",
+                    "O valor precisa ser maior que o seu limite atual de "
+                    f"{format_brl(customer.credit_limit)}.",
+                    amount,
+                    customer.credit_limit,
+                )
             ceiling = self._bands.max_limit_for(customer.score)
             approved = is_approved(amount, ceiling)
             self._requests.append(

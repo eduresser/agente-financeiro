@@ -40,7 +40,7 @@ Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 ## Funcionalidades
 
 - Autenticação decidida só por código, sem modelo, com mensagens que não revelam qual dado errou.
-- Pedido de aumento de limite analisado contra a tabela de faixas de score e registrado em `solicitacoes_aumento_limite.csv`.
+- Pedido de aumento de limite analisado contra a tabela de faixas de score e registrado em `solicitacoes_aumento_limite.csv`. Valor igual ou menor que o limite atual é recusado com orientação, sem registro e sem alterar o limite.
 - Após uma rejeição, o atendimento oferece a entrevista e, se aceita, reanalisa o mesmo valor com o score novo.
 - Entrevista conduzida pelo modelo, com ordem das perguntas e validação das respostas garantidas por código.
 - Cotação de moedas vinda de API externa, sempre com valor e horário da consulta.

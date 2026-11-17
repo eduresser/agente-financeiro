@@ -80,12 +80,14 @@ def test_invalid_value_creates_no_request(data_dir: Path, value: str) -> None:
 
 
 @pytest.mark.parametrize("value", ["5000", "4000"])
-def test_value_equal_or_below_current_is_analysed_like_any_request(
+def test_value_equal_or_below_current_is_refused_without_a_request_or_change(
     data_dir: Path, value: str
 ) -> None:
     decision = make_service(data_dir).request_increase(ANA, value)
-    assert decision.status == "approved"
-    assert [r["novo_limite_solicitado"] for r in requests_rows(data_dir)] == [f"{value}.00"]
+    assert decision.status == "invalid"
+    assert "R$ 5.000,00" in decision.message
+    assert requests_rows(data_dir) == []
+    assert CustomerRepository(data_dir / "clientes.csv").get(ANA).credit_limit == Decimal("5000")  # type: ignore[union-attr]
 
 
 def test_rejection_tells_the_ceiling_of_the_current_score(data_dir: Path) -> None:
