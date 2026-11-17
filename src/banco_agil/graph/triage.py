@@ -1,5 +1,6 @@
 import re
 from collections.abc import Callable
+from datetime import date
 from typing import Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -7,8 +8,10 @@ from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemM
 from pydantic import BaseModel
 
 from banco_agil.domain.auth import (
+    CPF_DIGITS,
     BirthLookup,
     authenticate,
+    digit_groups,
     extract_credentials,
     register_failure,
 )
@@ -31,8 +34,7 @@ AUTH_RETRY = (
 )
 AUTH_RETRY_VARIANTS = (
     AUTH_RETRY,
-    "Os dados ainda não conferem. Informe o seu CPF novamente, por favor, "
-    "e depois a data de nascimento.",
+    "Os dados ainda não conferem. Informe o seu CPF novamente, por favor.",
 )
 CPF_FORMAT_HELP = (
     "Não consegui ler o CPF. Ele precisa ter 11 dígitos, com ou sem pontos e traço. "
@@ -40,7 +42,15 @@ CPF_FORMAT_HELP = (
 )
 CPF_FORMAT_HELP_VARIANTS = (
     CPF_FORMAT_HELP,
-    "O CPF informado está incompleto. Digite os 11 números, por exemplo 123.456.789-09.",
+    "O CPF informado está incompleto. Digite os 11 números, com ou sem pontos e traço.",
+)
+CPF_INVALID_VARIANTS = (
+    "Esse CPF não é válido. Confira os 11 números e informe o seu CPF novamente, por favor.",
+    "O CPF informado continua inválido. Verifique os números e digite o seu CPF mais uma vez.",
+)
+DIGITS_UNREADABLE = (
+    "Não consegui identificar o CPF na sua mensagem. Envie só o CPF, com 11 números, "
+    "com ou sem pontos e traço."
 )
 BIRTH_FORMAT_HELP = (
     "Não consegui ler a data de nascimento. Use DD/MM/AAAA ou AAAA-MM-DD. "
@@ -141,6 +151,7 @@ def make_auth_node(
         attempts = state.get("auth_attempts", 0)
         candidate = state.get("cpf_candidate")
         found = extract_credentials(text)
+        birth = found.birth or _stored_birth(state)
 
         if found.birth_rejected:
             return _failure(
@@ -151,33 +162,42 @@ def make_auth_node(
 
         if candidate is None:
             if found.cpf is None:
+                if _has_cpf_sized_group(text):
+                    return _failure(
+                        attempts, _pick(CPF_INVALID_VARIANTS, attempts), keep_candidate=None
+                    )
+                if _digits_unreadable(text):
+                    return _reply(DIGITS_UNREADABLE)
+                if found.birth is not None:
+                    return _reply(_ask_cpf(state), birth_candidate=found.birth.isoformat())
                 if _looks_like_cpf_attempt(text):
                     return _failure(
                         attempts, _pick(CPF_FORMAT_HELP_VARIANTS, attempts), keep_candidate=None
                     )
                 if wants_to_end(text):
-                    return _reply(FAREWELL, phase="ended")
+                    return _reply(FAREWELL, phase="ended", birth_candidate=None)
                 return _reply(_ask_cpf(state))
-            if found.birth is None:
+            if birth is None:
                 return _reply(ASK_BIRTH_DATE, cpf_candidate=found.cpf)
         elif found.birth is None:
             if found.cpf is not None:
                 return _reply(ASK_BIRTH_DATE, cpf_candidate=found.cpf)
             if wants_to_end(text):
-                return _reply(FAREWELL, phase="ended", cpf_candidate=None)
+                return _reply(FAREWELL, phase="ended", cpf_candidate=None, birth_candidate=None)
             return _failure(
                 attempts, _pick(BIRTH_FORMAT_HELP_VARIANTS, attempts), keep_candidate=candidate
             )
 
         cpf = found.cpf or candidate
-        assert cpf is not None and found.birth is not None
-        outcome = authenticate(cpf, found.birth.isoformat(), lookup, attempts)
+        assert cpf is not None and birth is not None
+        outcome = authenticate(cpf, birth.isoformat(), lookup, attempts)
         if outcome.status == "authenticated":
             return _reply(
                 AUTH_OK,
                 phase="active",
                 customer_cpf=outcome.cpf,
                 cpf_candidate=None,
+                birth_candidate=None,
                 auth_attempts=0,
                 active_agent="triage",
             )
@@ -186,17 +206,39 @@ def make_auth_node(
     return auth_node
 
 
+def _stored_birth(state: GraphState) -> date | None:
+    stored = state.get("birth_candidate")
+    return date.fromisoformat(stored) if stored else None
+
+
 def _looks_like_cpf_attempt(text: str) -> bool:
     return bool(re.fullmatch(r"[\d.\-\s]+", text)) and any(ch.isdigit() for ch in text)
+
+
+def _has_cpf_sized_group(text: str) -> bool:
+    return any(len(group) == CPF_DIGITS for group in digit_groups(text))
+
+
+def _digits_unreadable(text: str) -> bool:
+    return sum(ch.isdigit() for ch in text) >= CPF_DIGITS
 
 
 def _failure(attempts: int, retry_text: str, keep_candidate: str | None) -> dict[str, object]:
     outcome = register_failure(attempts)
     if outcome.status == "locked":
         return _reply(
-            AUTH_LOCKED, phase="ended", auth_attempts=outcome.attempts, cpf_candidate=None
+            AUTH_LOCKED,
+            phase="ended",
+            auth_attempts=outcome.attempts,
+            cpf_candidate=None,
+            birth_candidate=None,
         )
-    return _reply(retry_text, auth_attempts=outcome.attempts, cpf_candidate=keep_candidate)
+    return _reply(
+        retry_text,
+        auth_attempts=outcome.attempts,
+        cpf_candidate=keep_candidate,
+        birth_candidate=None,
+    )
 
 
 def make_triage_node(model: BaseChatModel) -> Callable[[GraphState], dict[str, object]]:

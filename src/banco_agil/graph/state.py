@@ -13,6 +13,7 @@ class GraphState(TypedDict, total=False):
     phase: Phase
     auth_attempts: int
     cpf_candidate: str | None
+    birth_candidate: str | None
     customer_cpf: str | None
     active_agent: AgentName
     pending_limit: Decimal | None
