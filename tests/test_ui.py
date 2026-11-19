@@ -51,10 +51,10 @@ def test_ended_conversation_disables_input_and_new_conversation_starts_clean(
 
     app.chat_input[0].set_value("quero encerrar").run()
     assert app.chat_input[0].disabled is True
-    assert [b.label for b in app.button] == ["Nova conversa"]
+    assert [b.label for b in app.button] == ["", "", "Nova conversa"]
     assert "quero encerrar" in [m.markdown[0].value for m in app.chat_message if m.markdown]
 
-    app.button[0].click().run()
+    app.button[2].click().run()
     assert app.session_state["thread_id"] != first_thread
     assert app.chat_input[0].disabled is False
     assert [m.markdown[0].value for m in app.chat_message] == [GREETING]
@@ -90,3 +90,29 @@ def test_missing_configuration_shows_variable_names_without_crashing(
     assert not app.exception
     assert "CHAT_MODEL" in app.error[0].value
     assert len(app.chat_input) == 0
+
+
+def test_sidebar_new_conversation_resets_an_ongoing_chat(stub: StubService) -> None:
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    first_thread = app.session_state["thread_id"]
+    app.chat_input[0].set_value("olá").run()
+    assert app.chat_input[0].disabled is True
+
+    app.button[0].click().run()
+    assert app.session_state["thread_id"] != first_thread
+    assert [m.markdown[0].value for m in app.chat_message] == [GREETING]
+
+
+def test_sidebar_lists_seed_customers_and_saved_data(
+    stub: StubService, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from banco_agil.seed import bootstrap
+
+    bootstrap(tmp_path)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    assert not app.exception
+    app.button[1].click().run()
+    roster = app.dataframe[0].value
+    assert "11144477735" in roster["CPF"].tolist()
+    assert "17/05/1990" in roster["Nascimento"].tolist()
