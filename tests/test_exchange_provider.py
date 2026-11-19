@@ -100,3 +100,65 @@ def test_plain_code_costs_a_single_request() -> None:
     calls: list[str] = []
     provider(standard_handler, calls).get_rate("EUR")
     assert calls == ["/json/last/EUR-BRL"]
+
+
+def cross_handler(request: httpx.Request) -> httpx.Response:
+    path = request.url.path
+    if path == "/json/available":
+        return httpx.Response(200, json=AVAILABLE)
+    if path == "/json/last/EUR-USD":
+        return httpx.Response(200, json=quote_pair("EUR", "USD", "1.10", "Euro/Dólar Americano"))
+    return standard_handler(request)
+
+
+def brl_pairs_only(request: httpx.Request) -> httpx.Response:
+    if request.url.path.endswith("-BRL") or request.url.path == "/json/available":
+        return standard_handler(request)
+    return httpx.Response(404, json={"status": 404})
+
+
+def quote_pair(code: str, target: str, bid: str, name: str) -> dict[str, Any]:
+    return {f"{code}{target}": {"code": code, "codein": target, "name": name, "bid": bid}}
+
+
+def test_target_currency_uses_the_direct_pair_when_the_api_has_it() -> None:
+    quote = provider(cross_handler).get_rate("euro", "USD")
+    assert (quote.code, quote.target, quote.rate, quote.name) == (
+        "EUR",
+        "USD",
+        Decimal("1.10"),
+        "Euro",
+    )
+
+
+def test_target_currency_falls_back_to_a_cross_rate_through_brl() -> None:
+    calls: list[str] = []
+    quote = provider(brl_pairs_only, calls).get_rate("EUR", "USD")
+    assert quote.target == "USD"
+    assert quote.rate == Decimal("6.01") / Decimal("5.43")
+    assert calls == ["/json/last/EUR-USD", "/json/last/EUR-BRL", "/json/last/USD-BRL"]
+
+
+def test_target_given_by_name_is_resolved_and_unknown_target_is_reported() -> None:
+    assert provider(cross_handler).get_rate("EUR", "dólar").target == "USD"
+    with pytest.raises(UnknownCurrency):
+        provider(brl_pairs_only).get_rate("EUR", "XYZ")
+
+
+@pytest.mark.parametrize(
+    ("asked", "code"),
+    [("libra esterlina", "GBP"), ("dólar canadense", "CAD"), ("libra", "GBP"), ("dólares", "USD")],
+)
+def test_multi_word_plural_and_common_names_resolve_to_one_currency(asked: str, code: str) -> None:
+    def any_brl(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/json/available":
+            return httpx.Response(200, json=AVAILABLE)
+        found = path.rsplit("/", 1)[1].split("-")[0]
+        return httpx.Response(200, json=quote_body(found, "3.00", f"{found}/Real Brasileiro"))
+
+    assert provider(any_brl).get_rate(asked).code == code
+
+
+def test_plural_reais_is_accepted_as_target() -> None:
+    assert provider(brl_pairs_only).get_rate("EUR", "reais").target == "BRL"

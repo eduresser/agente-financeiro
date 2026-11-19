@@ -11,7 +11,7 @@ O cliente conversa com um único atendente. Por trás, um grafo de agentes cuida
 | Autenticação | Entrar com CPF e data de nascimento, com até três tentativas |
 | Crédito | Consultar o limite e pedir aumento, com resposta imediata |
 | Entrevista de crédito | Responder cinco perguntas para recalcular o score |
-| Câmbio | Consultar a cotação atual de uma moeda em reais |
+| Câmbio | Consultar a cotação atual de uma moeda, em reais por padrão ou em outra moeda de destino (ex.: euro em dólares) |
 
 A troca entre assuntos é invisível: o cliente nunca vê nomes de agentes nem mensagens de transferência.
 

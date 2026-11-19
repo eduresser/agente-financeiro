@@ -16,7 +16,7 @@ class FakeProvider:
         self.result = result
         self.asked: list[str | None] = []
 
-    def get_rate(self, currency: str | None) -> Quote:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
         self.asked.append(currency)
         if isinstance(self.result, Exception):
             raise self.result
@@ -63,3 +63,29 @@ def test_unknown_currency_and_outage_never_produce_a_value() -> None:
     assert down.invoke({}) == UNAVAILABLE
     broken = build_exchange_tools(FakeProvider(RuntimeError("boom")))[0]
     assert broken.invoke({}) == UNAVAILABLE
+
+
+def test_non_brl_target_is_passed_and_shown_in_its_own_currency() -> None:
+    provider = FakeProvider(Quote("EUR", "Euro", Decimal("1.1"), NOW, "USD"))
+    asked: list[tuple[str | None, str | None]] = []
+    original = provider.get_rate
+
+    def spy(currency: str | None, target: str | None = None) -> Quote:
+        asked.append((currency, target))
+        return original(currency)
+
+    provider.get_rate = spy  # type: ignore[method-assign]
+    [tool] = build_exchange_tools(provider)[:1]
+    text = tool.invoke({"currency": "euro", "target_currency": "dólar"})
+    assert asked == [("euro", "dólar")]
+    assert "1,1000 USD" in text
+    assert "R$" not in text
+
+
+def test_large_and_tiny_rates_keep_thousands_separator_and_precision() -> None:
+    big = build_exchange_tools(FakeProvider(Quote("BTC", "Bitcoin", Decimal("62700"), NOW, "USD")))
+    tiny = build_exchange_tools(
+        FakeProvider(Quote("JPY", "Iene", Decimal("0.0048213"), NOW, "GBP"))
+    )
+    assert "62.700,0000 USD" in big[0].invoke({"currency": "btc", "target_currency": "usd"})
+    assert "0,004821 GBP" in tiny[0].invoke({"currency": "jpy", "target_currency": "gbp"})

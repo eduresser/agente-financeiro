@@ -26,7 +26,7 @@ FORBIDDEN_WORDS = ("transfer", "agente", "especialista", "setor")
 
 
 class StubExchange:
-    def get_rate(self, currency: str | None) -> Quote:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
         return Quote("EUR", "Euro", Decimal("6.01"), NOW)
 
 

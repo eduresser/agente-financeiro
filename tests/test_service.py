@@ -22,7 +22,7 @@ ANA = "11144477735"
 
 
 class StubExchange:
-    def get_rate(self, currency: str | None) -> Quote:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
         return Quote("USD", "Dólar Americano", Decimal("5.43"), NOW)
 
 

@@ -35,7 +35,7 @@ RATES = {"USD": ("Dólar Americano", "5.43"), "EUR": ("Euro", "6.01")}
 
 
 class FixedExchange:
-    def get_rate(self, currency: str | None) -> Quote:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
         code = (currency or "USD").strip().upper()
         code = {"DÓLAR": "USD", "DOLAR": "USD", "EURO": "EUR"}.get(code, code)
         if code not in RATES:
@@ -45,7 +45,7 @@ class FixedExchange:
 
 
 class DownExchange:
-    def get_rate(self, currency: str | None) -> Quote:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
         raise ProviderUnavailable("simulated outage")
 
 

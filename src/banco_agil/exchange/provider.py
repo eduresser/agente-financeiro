@@ -13,6 +13,7 @@ from banco_agil.logging_utils import get_logger
 logger = get_logger(__name__)
 
 DEFAULT_CURRENCY = "USD"
+DEFAULT_TARGET = "BRL"
 EXAMPLE_CURRENCIES = ["USD", "EUR", "GBP"]
 TIMEOUT_SECONDS = 5.0
 
@@ -37,15 +38,28 @@ class Quote:
     name: str
     rate: Decimal
     queried_at: datetime
+    target: str = DEFAULT_TARGET
 
 
 class ExchangeRateProvider(Protocol):
-    def get_rate(self, currency: str | None) -> Quote: ...
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote: ...
 
 
 def _fold(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text.strip().lower())
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
+def _singulars(word: str) -> set[str]:
+    variants = {word, word[:-1], word[:-2]}
+    if word.endswith("ais"):
+        variants.add(word[:-3] + "al")
+    return variants
+
+
+def _name_matches(wanted: str, name: str) -> bool:
+    name_words = set(_fold(name).split())
+    return all(_singulars(word) & name_words for word in wanted.split())
 
 
 class AwesomeApiProvider:
@@ -59,13 +73,23 @@ class AwesomeApiProvider:
         self._client = client or httpx.Client(timeout=TIMEOUT_SECONDS)
         self._clock = clock
 
-    def get_rate(self, currency: str | None) -> Quote:
-        code = self._resolve(currency)
-        payload = self._get(f"/json/last/{code}-BRL")
-        if payload is None:
+    def get_rate(self, currency: str | None, target: str | None = None) -> Quote:
+        code = self._resolve(currency, DEFAULT_CURRENCY)
+        target_code = self._resolve(target, DEFAULT_TARGET)
+        found = self._pair(code, target_code)
+        if found is None and DEFAULT_TARGET not in (code, target_code):
+            found = self._cross(code, target_code)
+        if found is None:
             raise UnknownCurrency(self._examples())
+        rate, name = found
+        return Quote(code, name, rate, self._clock(), target_code)
+
+    def _pair(self, code: str, target: str) -> tuple[Decimal, str] | None:
+        payload = self._get(f"/json/last/{code}-{target}")
+        if payload is None:
+            return None
         try:
-            entry = payload[f"{code}BRL"]
+            entry = payload[f"{code}{target}"]
             rate = Decimal(str(entry["bid"]))
             name = str(entry["name"]).split("/")[0]
         except (KeyError, TypeError, InvalidOperation) as exc:
@@ -74,25 +98,40 @@ class AwesomeApiProvider:
         if rate <= 0:
             logger.error("exchange_invalid_rate code=%s", code)
             raise ProviderUnavailable("non-positive rate")
-        return Quote(code, name, rate, self._clock())
+        return rate, name
 
-    def _resolve(self, currency: str | None) -> str:
+    def _cross(self, code: str, target: str) -> tuple[Decimal, str] | None:
+        source = self._pair(code, DEFAULT_TARGET)
+        destination = self._pair(target, DEFAULT_TARGET)
+        if source is None or destination is None:
+            return None
+        return source[0] / destination[0], source[1]
+
+    def _resolve(self, currency: str | None, default: str) -> str:
         if currency is None or not currency.strip():
-            return DEFAULT_CURRENCY
+            return default
         if re.fullmatch(r"[A-Za-z]{3}", currency.strip()):
             return currency.strip().upper()
         available = self._available()
         wanted = _fold(currency)
         matches = {
-            pair.split("-")[0]
-            for pair, label in available.items()
-            if pair.endswith("-BRL") and wanted in _fold(label.split("/")[0]).split()
+            code for code, name in self._names(available).items() if _name_matches(wanted, name)
         }
+        common = matches & set(EXAMPLE_CURRENCIES)
         if len(matches) == 1:
             return matches.pop()
-        if DEFAULT_CURRENCY in matches:
-            return DEFAULT_CURRENCY
+        if len(common) == 1:
+            return common.pop()
         raise UnknownCurrency(self._examples(available))
+
+    def _names(self, available: dict[str, str]) -> dict[str, str]:
+        names: dict[str, str] = {}
+        for pair, label in available.items():
+            codes = pair.split("-")
+            labels = label.split("/")
+            if len(codes) == len(labels) == 2:
+                names.update(zip(codes, labels, strict=True))
+        return names
 
     def _available(self) -> dict[str, str]:
         payload = self._get("/json/available")

@@ -16,6 +16,8 @@ EXCHANGE_PROMPT = (
     "- Every rate must come from get_exchange_rate. Never state a rate from memory.\n"
     "- Pass the currency exactly as the customer wrote it. Without a currency, call the "
     "tool with no currency.\n"
+    "- Rates are in reais unless the customer names another currency to convert into "
+    "(e.g. euro in dollars); then pass it as target_currency. Otherwise leave it empty.\n"
     "- Repeat the value, currency and consultation time the tool returned.\n"
     "- After giving the rate, close the quote with a short friendly sentence and offer "
     "further help.\n"
