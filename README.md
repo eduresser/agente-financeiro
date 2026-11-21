@@ -64,7 +64,7 @@ Todos os dados são fictícios.
 
 As tabelas `clientes.csv`, `score_limite.csv` e `solicitacoes_aumento_limite.csv` não estão versionadas no repositório. Na primeira execução, a aplicação cria a pasta `data/` com esses clientes e com as faixas de score. Arquivos que já existem nunca são sobrescritos.
 
-Para voltar ao estado inicial, pare a aplicação e apague a pasta: `rm -r data`. Os arquivos ficam em `data/`, incluindo `data/solicitacoes_aumento_limite.csv` e o banco de conversas em `data/runtime/`.
+Para voltar ao estado inicial, pare a aplicação e apague a pasta: `rm -r data`. Os arquivos ficam em `data/`, incluindo `data/solicitacoes_aumento_limite.csv`.
 
 ### Roteiro de teste manual
 
@@ -130,7 +130,7 @@ flowchart LR
 | Entrevista de crédito | Faz as cinco perguntas, calcula o score e devolve o cliente ao crédito | Grava o score em `clientes.csv` |
 | Câmbio | Consulta a cotação de uma moeda e fecha a consulta com cordialidade | Consulta a API externa; não usa arquivos |
 
-Todos os arquivos ficam em `data/` e são alterados por repositórios próprios, com gravação atômica. O estado da conversa (CPF autenticado, agente ativo, pedido pendente, respostas da entrevista) fica no grafo e é salvo em SQLite.
+Todos os arquivos ficam em `data/` e são alterados por repositórios próprios, com gravação atômica. O estado da conversa (CPF autenticado, agente ativo, pedido pendente, respostas da entrevista) fica no grafo e fica só na memória do processo: reiniciar o serviço encerra as conversas em andamento, e nada da conversa é gravado em disco.
 
 Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 
@@ -170,7 +170,7 @@ O enunciado deixa lacunas, e cada uma foi decidida de forma explícita e justifi
 | Orquestração | LangGraph, grafo único | Estado compartilhado e roteamento explícito entre agentes |
 | Modelo | LiteLLM com `CHAT_MODEL_*` para o atendimento e `JUDGE_CHAT_MODEL_*` para o juiz dos guardrails | Trocar de provedor só por configuração; o juiz pode ser um modelo distinto, mais barato ou independente |
 | Dados de negócio | CSV com gravação atômica | Simples de inspecionar e suficiente para o escopo |
-| Conversa | SQLite (checkpointer do LangGraph) | Continuidade sem infraestrutura extra |
+| Conversa | Memória do processo (checkpointer em memória do LangGraph) | Simples e rápido; nenhum dado da conversa fica gravado em disco, e a tela já começa uma conversa nova após reinício |
 | Câmbio | AwesomeAPI, valor de compra (`bid`) | Sem chave e com horário da cotação |
 | Interface | Streamlit | Tela de conversa simples para testar o fluxo completo |
 | Observabilidade | Langfuse, opcional | Traces com CPF mascarado e sem o texto do cliente |

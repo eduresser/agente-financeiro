@@ -57,7 +57,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | Guardrails atrás da interface `Guardrail` | Permite trocar por um serviço gerenciado sem mexer nos agentes |
 | Modelo juiz só em caso de suspeita; falha do juiz bloqueia | Economiza chamadas e falha de forma segura |
 | Fachada `ChatService.send` como único ponto de entrada | Captura qualquer exceção e devolve resposta amigável |
-| Checkpointer SQLite indexado pelo identificador da conversa | Retoma a conversa após reinício |
+| Checkpointer em memória indexado pelo identificador da conversa | Mantém o estado entre turnos sem gravar a conversa em disco |
 | CPF validado pelos dígitos verificadores | Descarta erros de digitação antes de consultar a base |
 
 ## Decisões em pontos que o enunciado não define
@@ -127,7 +127,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 
 | Decisão | Motivo |
 |---|---|
-| A conversa é salva em SQLite | Reiniciar o serviço não obriga o cliente a se autenticar de novo |
+| A conversa fica só na memória do processo | Nenhum dado pessoal da conversa é gravado em disco; reiniciar o serviço encerra as conversas e o cliente se autentica de novo |
 | Conversa inativa por 5 minutos é encerrada (configurável, `0` desliga) | Evita deixar uma sessão autenticada aberta |
 | Os dados de teste são criados na primeira execução e a pasta `data/` não é versionada | Execução simples e sem risco de sobrescrever dados existentes |
 | Logs e traces mascaram o CPF e não registram o texto do cliente | Privacidade dos dados, inclusive em ferramentas de observabilidade |

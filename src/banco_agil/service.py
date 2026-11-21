@@ -1,5 +1,4 @@
 import logging
-import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,7 +7,7 @@ from typing import Any
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from banco_agil.config import Settings, get_settings
@@ -45,12 +44,6 @@ class Reply:
     text: str
     ended: bool = False
     failed: bool = False
-
-
-def open_checkpointer(path: Path) -> SqliteSaver:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path, check_same_thread=False)
-    return SqliteSaver(connection)
 
 
 class ChatService:
@@ -167,11 +160,9 @@ class ChatService:
 def create_service(
     settings: Settings | None = None,
     data_dir: Path | None = None,
-    database: Path | None = None,
 ) -> ChatService:
     settings = settings or get_settings()
     data_dir = data_dir or default_data_dir()
-    database = database or data_dir / "runtime" / "conversations.sqlite"
     bootstrap(data_dir)
     customers = CustomerRepository(data_dir / "clientes.csv")
     bands = ScoreLimitRepository(data_dir / "score_limite.csv")
@@ -183,7 +174,7 @@ def create_service(
         requests=LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv"),
         exchange=AwesomeApiProvider(settings.exchange_api_base_url),
         guardrail=LocalGuardrail(judge=judge, protected=other_customers_patterns(customers, bands)),
-        checkpointer=open_checkpointer(database),
+        checkpointer=InMemorySaver(),
     )
     return ChatService(
         graph, build_callbacks(settings), idle_timeout=settings.session_timeout_seconds

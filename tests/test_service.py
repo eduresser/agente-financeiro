@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langgraph.checkpoint.memory import InMemorySaver
 
 from banco_agil.config import Settings
 from banco_agil.exchange import Quote
@@ -13,7 +14,7 @@ from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.observability import REDACTED, build_callbacks, redact
 from banco_agil.seed import bootstrap
-from banco_agil.service import FRIENDLY_ERROR, TIMEOUT_REPLY, ChatService, open_checkpointer
+from banco_agil.service import FRIENDLY_ERROR, TIMEOUT_REPLY, ChatService
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from tests.fakes import ScriptedChatModel, ai, ai_tool_call
 
@@ -32,7 +33,7 @@ def data_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def make_service(data_dir: Path, script: list[Any], database: Path | None = None) -> ChatService:
+def make_service(data_dir: Path, script: list[Any]) -> ChatService:
     customers = CustomerRepository(data_dir / "clientes.csv")
     graph = build_graph(
         model=ScriptedChatModel(script=script),
@@ -41,7 +42,7 @@ def make_service(data_dir: Path, script: list[Any], database: Path | None = None
         requests=LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv"),
         exchange=StubExchange(),
         guardrail=LocalGuardrail(protected=other_customers_patterns(customers)),
-        checkpointer=open_checkpointer(database or data_dir / "chat.sqlite"),
+        checkpointer=InMemorySaver(),
         clock=lambda: NOW,
     )
     return ChatService(graph)
@@ -56,20 +57,12 @@ def login(service: ChatService, thread: str) -> None:
 def test_login_data_and_later_cpf_mentions_are_not_kept_in_the_stored_conversation(
     data_dir: Path,
 ) -> None:
-    database = data_dir / "chat.sqlite"
-    service = make_service(
-        data_dir, [ai('{"topic": "credit"}'), ai("Seu limite é R$ 5.000,00.")], database
-    )
+    service = make_service(data_dir, [ai('{"topic": "credit"}'), ai("Seu limite é R$ 5.000,00.")])
     login(service, "t-private")
     service.send("t-private", "meu limite? sou o cliente 111.444.777-35")
 
     stored = [text for role, text in service.history("t-private") if role == "user"]
     assert stored == ["[CPF]", "[DATA]", "meu limite? sou o cliente [CPF]"]
-
-    restarted = make_service(data_dir, [], database)
-    assert all(
-        ANA not in text and "17/05/1990" not in text for _, text in restarted.history("t-private")
-    )
 
 
 def test_model_failure_gives_friendly_reply_and_keeps_previous_state(
@@ -111,22 +104,18 @@ def test_unexpected_exceptions_never_reach_the_interface(data_dir: Path) -> None
     assert reply.failed is True
 
 
-def test_conversation_survives_a_restart_and_threads_are_isolated(data_dir: Path) -> None:
-    database = data_dir / "persist.sqlite"
-    first = make_service(data_dir, [], database)
-    login(first, "thread-a")
-
-    second = make_service(
+def test_threads_are_isolated(data_dir: Path) -> None:
+    service = make_service(
         data_dir,
         [
             ai('{"topic": "credit"}'),
             ai_tool_call("get_credit_limit", {}),
             ai("Seu limite é R$ 5.000,00."),
         ],
-        database,
     )
-    assert second.send("thread-a", "qual meu limite?").text == "Seu limite é R$ 5.000,00."
-    other = second.send("thread-b", "qual meu limite?")
+    login(service, "thread-a")
+    assert service.send("thread-a", "qual meu limite?").text == "Seu limite é R$ 5.000,00."
+    other = service.send("thread-b", "qual meu limite?")
     assert "CPF" in other.text
     assert "5.000" not in other.text
 

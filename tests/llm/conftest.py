@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from dotenv import dotenv_values
 from langchain_core.language_models.chat_models import BaseChatModel
+from langgraph.checkpoint.memory import InMemorySaver
 
 from banco_agil.config import Settings
 from banco_agil.exchange import ProviderUnavailable, Quote
@@ -16,7 +17,7 @@ from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.guardrails.judge import ModelJudge
 from banco_agil.llm import build_chat_model, build_judge_model
 from banco_agil.seed import bootstrap
-from banco_agil.service import ChatService, open_checkpointer
+from banco_agil.service import ChatService
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 
 NOW = datetime(2026, 11, 16, 12, 0, 0)
@@ -113,7 +114,7 @@ def run_scenario(
             guardrail=LocalGuardrail(
                 judge=ModelJudge(judge_model), protected=other_customers_patterns(customers, bands)
             ),
-            checkpointer=open_checkpointer(data_dir / "chat.sqlite"),
+            checkpointer=InMemorySaver(),
             clock=lambda: NOW,
         )
         service = ChatService(graph)
