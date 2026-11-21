@@ -3,6 +3,7 @@ import re
 from collections.abc import Callable, Iterable
 from decimal import Decimal
 
+from banco_agil.domain.privacy import redact_sensitive
 from banco_agil.guardrails.base import ALLOWED, Direction, GuardContext, GuardResult, Judge
 from banco_agil.guardrails.rules import (
     INTERNAL_MARKERS,
@@ -117,7 +118,7 @@ class LocalGuardrail:
             return ALLOWED
         if verdict == "block":
             return GuardResult(False, "prompt_injection")
-        return self._judge_suspect(text, "input", "suspect_input")
+        return self._judge_suspect(text, "input", "suspect_input", context)
 
     def check_output(self, text: str, context: GuardContext) -> GuardResult:
         if foreign_cpf_present(text, context.customer_cpf) or protected_pattern_present(
@@ -134,11 +135,13 @@ class LocalGuardrail:
             return GuardResult(False, "agent_mention")
         return ALLOWED
 
-    def _judge_suspect(self, text: str, direction: Direction, reason: str) -> GuardResult:
+    def _judge_suspect(
+        self, text: str, direction: Direction, reason: str, context: GuardContext
+    ) -> GuardResult:
         if self._judge is None:
             return GuardResult(False, reason)
         try:
-            safe = self._judge.is_safe(text, direction)
+            safe = self._judge.is_safe(redact_sensitive(text, context.known), direction)
         except Exception as exc:
             logger.log(logging.ERROR, "judge_failed error=%s", type(exc).__name__)
             return GuardResult(False, "judge_failed")

@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage
 
 from banco_agil.exchange import ExchangeRateProvider
 from banco_agil.graph.agent_loop import run_tool_loop
-from banco_agil.graph.state import GraphState
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.graph.style import STYLE_GUIDE
 from banco_agil.tools.exchange_tools import build_exchange_tools
 from banco_agil.tools.session_tools import END_RULE, SessionTurn, build_session_tools
@@ -34,7 +34,9 @@ def make_exchange_node(
     def exchange_node(state: GraphState) -> dict[str, object]:
         ending = SessionTurn()
         tools = [*build_exchange_tools(provider), *build_session_tools(ending)]
-        reply = run_tool_loop(model, EXCHANGE_PROMPT, state.get("messages", []), tools)
+        reply = run_tool_loop(
+            model, EXCHANGE_PROMPT, state.get("messages", []), tools, known=known_from_state(state)
+        )
         update: dict[str, object] = {"active_agent": "triage"}
         if ending.ended:
             update["phase"] = "ended"

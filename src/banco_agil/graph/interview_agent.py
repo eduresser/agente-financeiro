@@ -4,7 +4,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 
 from banco_agil.graph.agent_loop import run_tool_loop
-from banco_agil.graph.state import GraphState
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.graph.style import STYLE_GUIDE
 from banco_agil.storage import CustomerRepository
 from banco_agil.tools.interview_tools import InterviewSession, build_interview_tools
@@ -53,6 +53,7 @@ def make_interview_node(
             state.get("messages", []),
             [*build_interview_tools(session), *build_session_tools(ending)],
             stop_when=(lambda: session.finished) if hands_back_to_credit else None,
+            known=known_from_state(state),
         )
         update: dict[str, object] = {"interview": session.snapshot()}
         if reply is not None:

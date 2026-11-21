@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from banco_agil.domain.privacy import Known
+
 BLOCKED_INPUT_REPLY = (
     "Não consegui processar essa mensagem. Pode reformular o que você precisa, por favor?"
 )
@@ -25,6 +27,7 @@ class GuardContext:
     customer_cpf: str | None = None
     thread_id: str = "unknown"
     user_text: str = ""
+    known: Known = Known()  # noqa: B008
 
 
 @dataclass(frozen=True)

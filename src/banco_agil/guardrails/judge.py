@@ -29,7 +29,10 @@ class ModelJudge:
 
     def is_safe(self, text: str, direction: Direction) -> bool:
         verdict = self._judge.invoke(
-            [SystemMessage(content=JUDGE_PROMPTS[direction]), HumanMessage(content=text)]
+            [
+                SystemMessage(content=JUDGE_PROMPTS[direction]),
+                HumanMessage(content=text),
+            ]
         )
         if not isinstance(verdict, JudgeVerdict):
             raise ValueError("judge returned an unexpected verdict")

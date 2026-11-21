@@ -7,7 +7,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 
 from banco_agil.domain.credit_rules import format_brl
 from banco_agil.graph.agent_loop import run_tool_loop
-from banco_agil.graph.state import GraphState
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.graph.style import STYLE_GUIDE
 from banco_agil.tools.credit_tools import CreditService, LimitDecision, build_credit_tools
 from banco_agil.tools.session_tools import END_RULE, SessionTurn, build_session_tools
@@ -112,6 +112,7 @@ def make_credit_node(
             state.get("messages", []),
             tools,
             stop_when=lambda: turn.accepted,
+            known=known_from_state(state),
         )
         update: dict[str, object] = {}
         if reply is not None:

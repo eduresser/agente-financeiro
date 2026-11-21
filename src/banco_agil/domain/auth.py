@@ -40,7 +40,7 @@ def _adult_cutoff(today: date) -> date:
         return today.replace(year=today.year - MIN_AGE, day=28)
 
 
-def _calendar_dates(digits: str) -> list[date]:
+def calendar_dates(digits: str) -> list[date]:
     if len(digits) != BIRTH_DIGITS:
         return []
     dates: list[date] = []
@@ -54,36 +54,57 @@ def _calendar_dates(digits: str) -> list[date]:
     return dates
 
 
-def _parse_compact_date(digits: str) -> date | None:
+def parse_compact_date(digits: str) -> date | None:
     cutoff = _adult_cutoff(date.today())
-    return next((d for d in _calendar_dates(digits) if d <= cutoff), None)
+    return next((d for d in calendar_dates(digits) if d <= cutoff), None)
 
 
 def parse_birth_date(raw: str) -> date | None:
     cleaned = raw.strip()
     if not _ONLY_DATE_CHARS.fullmatch(cleaned):
         return None
-    return _parse_compact_date(re.sub(r"\D", "", cleaned))
+    return parse_compact_date(re.sub(r"\D", "", cleaned))
 
 
-def _split_joined(group: str) -> list[str]:
+def split_joined(group: str) -> list[str]:
     if len(group) != CPF_DIGITS + BIRTH_DIGITS:
         return [group]
     for cpf, birth in (
         (group[:CPF_DIGITS], group[CPF_DIGITS:]),
         (group[BIRTH_DIGITS:], group[:BIRTH_DIGITS]),
     ):
-        if is_valid_cpf(cpf) and _calendar_dates(birth):
+        if is_valid_cpf(cpf) and calendar_dates(birth):
             return [cpf, birth]
     return [group]
 
 
+@dataclass(frozen=True)
+class DigitGroup:
+    digits: str
+    start: int
+    end: int
+
+
+def digit_spans(text: str) -> list[DigitGroup]:
+    groups: list[DigitGroup] = []
+    digits: list[str] = []
+    start = end = 0
+    for index, char in enumerate(text):
+        if char.isdecimal():
+            if not digits:
+                start = index
+            digits.append(char)
+            end = index + 1
+        elif not _SEPARATORS.fullmatch(char) and digits:
+            groups.append(DigitGroup("".join(digits), start, end))
+            digits = []
+    if digits:
+        groups.append(DigitGroup("".join(digits), start, end))
+    return groups
+
+
 def digit_groups(text: str) -> list[str]:
-    return [
-        piece
-        for group in re.findall(r"\d+", _SEPARATORS.sub("", text))
-        for piece in _split_joined(group)
-    ]
+    return [piece for group in digit_spans(text) for piece in split_joined(group.digits)]
 
 
 def extract_credentials(text: str) -> Credentials:
@@ -94,8 +115,8 @@ def extract_credentials(text: str) -> Credentials:
         if cpf is None and len(group) == CPF_DIGITS and is_valid_cpf(group):
             cpf = group
         elif birth is None:
-            birth = _parse_compact_date(group)
-            rejected = rejected or (birth is None and bool(_calendar_dates(group)))
+            birth = parse_compact_date(group)
+            rejected = rejected or (birth is None and bool(calendar_dates(group)))
     return Credentials(cpf, birth, rejected and birth is None)
 
 

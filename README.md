@@ -148,7 +148,7 @@ Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 
 ### Desafios técnicos
 
-- **Autenticação por chat sem expor dados sensíveis ao modelo.** O cliente se autentica pela conversa, mas CPF e data de nascimento não podem ser tratados pelo modelo. Por isso, a coleta, a validação e a decisão de autenticar são feitas só por código, com frases pré-programadas e variadas (pedido do CPF, da data, formato inválido, nova tentativa), para que o diálogo soe natural mesmo sem modelo. O único uso do modelo nessa etapa é detectar o pedido de encerramento, e só em mensagens sem dígitos.
+- **Autenticação por chat sem expor dados sensíveis ao modelo.** O cliente se autentica pela conversa, mas CPF e data de nascimento não podem ser tratados pelo modelo. Por isso, a coleta, a validação e a decisão de autenticar são feitas só por código, com frases pré-programadas e variadas (pedido do CPF, da data, formato inválido, nova tentativa), para que o diálogo soe natural mesmo sem modelo. O único uso do modelo nessa etapa é detectar o pedido de encerramento, e só em mensagens sem dígitos. Nos demais pontos em que o modelo lê a conversa (agentes, triagem e juiz dos guardrails), só o CPF e a data de nascimento do próprio cliente são trocados por `[CPF]` e `[DATA]` antes do envio, comparando com os valores já conhecidos (os do cliente autenticado; durante o login, os que a autenticação reconhece como credenciais). Outros números, como valores, protocolos e CPFs de terceiros, não são alterados. O histórico salvo segue a mesma regra: ao final de cada turno, esses dois dados viram `[CPF]` e `[DATA]` no estado persistido.
 - **Modelo não pode decidir quem é o cliente.** O CPF autenticado fica no estado do grafo e é injetado nas ferramentas por código. Nenhuma ferramenta recebe CPF como argumento, e as respostas das ferramentas não incluem o CPF.
 - **Conversa natural com regras rígidas.** A entrevista é livre na redação, mas só avança com uma pergunta por vez, na ordem, e só calcula o score com as cinco respostas válidas.
 - **Falhas não podem derrubar o atendimento.** Erros de modelo, de arquivo e de API viram mensagens claras ao cliente; o detalhe vai para o log, com CPF mascarado.
@@ -181,7 +181,7 @@ O enunciado deixa lacunas, e cada uma foi decidida de forma explícita e justifi
 
 ```text
 src/banco_agil/
-├── domain/       Regras puras: CPF, autenticação, regras de crédito e fórmula do score
+├── domain/       Regras puras: CPF, autenticação, mascaramento de dados sensíveis, regras de crédito e fórmula do score
 ├── storage/      Repositórios CSV com gravação atômica
 ├── graph/        Estado, nós de cada agente, guardrails e montagem do grafo
 ├── tools/        Ferramentas de cada agente, com o CPF já injetado por código

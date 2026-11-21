@@ -5,7 +5,8 @@ from datetime import datetime
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from banco_agil.graph.state import GraphState
+from banco_agil.domain.privacy import redacted_human_messages
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.guardrails import (
     BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
@@ -51,7 +52,7 @@ def make_input_guard_node(
         if last is None:
             return {"blocked_input": False}
         thread_id = _thread_id(config)
-        context = GuardContext(state.get("customer_cpf"), thread_id)
+        context = GuardContext(state.get("customer_cpf"), thread_id, known=known_from_state(state))
         text = last.content if isinstance(last.content, str) else ""
         result = guardrail.check_input(text, context)
         if result.allowed:
@@ -102,6 +103,12 @@ def make_output_guard_node(
             if not result.allowed:
                 _log_block("output", result.reason, thread_id, clock)
                 replaced.append(AIMessage(content=SAFE_OUTPUT_REPLY, id=message.id))
+        already = {m.id for m in replaced}
+        replaced.extend(
+            m
+            for m in redacted_human_messages(state.get("messages", []), known_from_state(state))
+            if m.id not in already
+        )
         return {"messages": replaced} if replaced else {}
 
     return output_guard

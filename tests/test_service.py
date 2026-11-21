@@ -53,6 +53,25 @@ def login(service: ChatService, thread: str) -> None:
     assert "Autenticação concluída" in reply.text
 
 
+def test_login_data_and_later_cpf_mentions_are_not_kept_in_the_stored_conversation(
+    data_dir: Path,
+) -> None:
+    database = data_dir / "chat.sqlite"
+    service = make_service(
+        data_dir, [ai('{"topic": "credit"}'), ai("Seu limite é R$ 5.000,00.")], database
+    )
+    login(service, "t-private")
+    service.send("t-private", "meu limite? sou o cliente 111.444.777-35")
+
+    stored = [text for role, text in service.history("t-private") if role == "user"]
+    assert stored == ["[CPF]", "[DATA]", "meu limite? sou o cliente [CPF]"]
+
+    restarted = make_service(data_dir, [], database)
+    assert all(
+        ANA not in text and "17/05/1990" not in text for _, text in restarted.history("t-private")
+    )
+
+
 def test_model_failure_gives_friendly_reply_and_keeps_previous_state(
     data_dir: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

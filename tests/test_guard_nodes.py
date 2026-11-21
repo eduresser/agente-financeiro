@@ -129,3 +129,43 @@ def test_alternative_implementation_is_used_by_both_barriers() -> None:
     assert replaced["messages"][0].content == SAFE_OUTPUT_REPLY  # type: ignore[index]
     assert stub.inputs == ["olá"]
     assert stub.outputs == ["resposta do agente"]
+
+
+def test_cpf_and_birth_date_typed_in_any_turn_are_masked_in_the_stored_messages() -> None:
+    node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
+    state: GraphState = {
+        "phase": "active",
+        "customer_cpf": "11144477735",
+        "customer_birth": "1990-05-17",
+    }
+    state = say(state, "qual a cotação do dólar? meu cpf 111 444 777 35, nasci 17/05/1990")
+    state = apply(state, {"messages": [AIMessage(content="O dólar está em R$ 5,43.")]})
+    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
+    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
+    assert texts == ["qual a cotação do dólar? meu cpf [CPF], nasci [DATA]"]
+
+
+def test_numbers_that_are_not_the_logged_in_customers_data_are_kept() -> None:
+    node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
+    state: GraphState = {
+        "phase": "active",
+        "customer_cpf": "11144477735",
+        "customer_birth": "1990-05-17",
+    }
+    state = say(state, "protocolo 12345678, limite 8000 e o cpf 529.982.247-25")
+    state = apply(state, {"messages": [AIMessage(content="Certo.")]})
+    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
+    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
+    assert texts == ["protocolo 12345678, limite 8000 e o cpf 529.982.247-25"]
+
+
+def test_blocked_message_keeps_the_placeholder_and_earlier_turns_are_masked() -> None:
+    node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
+    state: GraphState = {"phase": "active", "blocked_input": True, "customer_cpf": "11144477735"}
+    state = say(state, "cpf 11144477735")
+    state = apply(state, {"messages": [AIMessage(content="ok")]})
+    state = say(state, INJECTION)
+    state = apply(state, {"messages": [AIMessage(content="Não consegui processar.")]})
+    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
+    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
+    assert texts == ["cpf [CPF]", BLOCKED_INPUT_PLACEHOLDER]
