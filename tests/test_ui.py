@@ -61,6 +61,54 @@ def test_ended_conversation_disables_input_and_new_conversation_starts_clean(
     assert stub.history(app.session_state["thread_id"]) == [("assistant", GREETING)]
 
 
+class MaskingService(StubService):
+    def send(self, thread_id: str, text: str) -> Reply:
+        self.seen_pending = st.session_state.get("pending_message")
+        history = self.threads.setdefault(thread_id, [])
+        history += [("user", "[CPF]"), ("assistant", "Autenticado.")]
+        return Reply("Autenticado.")
+
+
+def test_original_messages_stay_on_screen_while_the_stored_history_is_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = MaskingService()
+    monkeypatch.setattr("banco_agil.service.create_service", lambda *a, **k: service)
+    st.cache_resource.clear()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+
+    app.chat_input[0].set_value("meu cpf é 111.444.777-35").run()
+
+    shown = [m.markdown[0].value for m in app.chat_message if m.markdown]
+    assert shown == [GREETING, "meu cpf é 111.444.777-35", "Autenticado."]
+    assert service.history(app.session_state["thread_id"])[1] == ("user", "[CPF]")
+
+
+def test_input_is_disabled_while_the_reply_is_being_processed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = MaskingService()
+    monkeypatch.setattr("banco_agil.service.create_service", lambda *a, **k: service)
+    st.cache_resource.clear()
+    disabled_per_render: list[bool] = []
+    real_chat_input = st.chat_input
+
+    def spy(*args: object, **kwargs: object) -> object:
+        disabled_per_render.append(bool(kwargs.get("disabled")))
+        return real_chat_input(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(st, "chat_input", spy)
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    disabled_per_render.clear()
+
+    app.chat_input[0].set_value("quero meu limite").run()
+
+    assert disabled_per_render == [False, True, False]
+    assert service.seen_pending == "quero meu limite"
+    assert app.chat_input[0].disabled is False
+    assert app.session_state["pending_message"] is None
+
+
 @pytest.mark.parametrize(
     ("last", "timeout", "now", "expected"),
     [

@@ -9,7 +9,7 @@ from banco_agil.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-MAX_STEPS = 6
+MAX_STEPS = 10
 LOOP_FALLBACK = "Não consegui concluir agora. Pode repetir o que precisa, por favor?"
 
 

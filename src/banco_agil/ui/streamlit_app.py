@@ -60,7 +60,8 @@ def watch_idle(service: ChatService, thread_id: str) -> None:
         if service.is_ended(thread_id):
             return
         if idle_expired(last, service.idle_timeout, time.monotonic()):
-            service.close_for_timeout(thread_id)
+            reply = service.close_for_timeout(thread_id)
+            st.session_state.transcript.append(("assistant", reply.text))
             st.rerun(scope="app")
 
     check()
@@ -73,7 +74,8 @@ def format_birth_date(iso: str) -> str:
 
 def start_new_conversation() -> None:
     st.session_state.thread_id = new_thread_id()
-    st.session_state.pop("last_activity", None)
+    for key in ("last_activity", "transcript", "pending_message"):
+        st.session_state.pop(key, None)
 
 
 @st.dialog("Roteiro de teste", width="large")
@@ -132,23 +134,33 @@ def render(service: ChatService) -> None:
     thread_id: str = st.session_state.thread_id
     service.start(thread_id)
 
-    for role, text in service.history(thread_id):
+    if "transcript" not in st.session_state:
+        st.session_state.transcript = service.history(thread_id)
+    transcript: list[tuple[str, str]] = st.session_state.transcript
+    for role, text in transcript:
         with st.chat_message(role, avatar=AVATARS[role]):
             st.write(text)
 
     ended = service.is_ended(thread_id)
-    message = st.chat_input(INPUT_PLACEHOLDER, disabled=ended)
-    if message and not ended:
+    pending: str | None = st.session_state.get("pending_message")
+    message = st.chat_input(INPUT_PLACEHOLDER, disabled=ended or pending is not None)
+    if message and not ended and pending is None:
         st.session_state.last_activity = time.monotonic()
-        with st.chat_message("user", avatar=AVATARS["user"]):
-            st.write(message)
-        with st.chat_message("assistant", avatar=AVATARS["assistant"]):
-            with st.spinner("Atendendo..."):
-                reply = service.send(thread_id, message)
-            st.write(reply.text)
-        st.session_state.last_activity = time.monotonic()
-        if reply.ended:
-            st.rerun()
+        st.session_state.pending_message = message
+        transcript.append(("user", message))
+        st.rerun()
+
+    if pending is not None:
+        if not ended:
+            with (
+                st.chat_message("assistant", avatar=AVATARS["assistant"]),
+                st.spinner("Atendendo..."),
+            ):
+                reply = service.send(thread_id, pending)
+            transcript.append(("assistant", reply.text))
+            st.session_state.last_activity = time.monotonic()
+        st.session_state.pending_message = None
+        st.rerun()
 
     if not ended and service.idle_timeout > 0:
         watch_idle(service, thread_id)
