@@ -130,7 +130,7 @@ flowchart LR
 | Entrevista de crédito | Faz as cinco perguntas, calcula o score e devolve o cliente ao crédito | Grava o score em `clientes.csv` |
 | Câmbio | Consulta a cotação de uma moeda e fecha a consulta com cordialidade | Consulta a API externa; não usa arquivos |
 
-Todos os arquivos ficam em `data/` e são alterados por repositórios próprios, com gravação atômica. O estado da conversa (CPF autenticado, agente ativo, pedido pendente, respostas da entrevista) fica no grafo e fica só na memória do processo: reiniciar o serviço encerra as conversas em andamento, e nada da conversa é gravado em disco.
+Todos os arquivos ficam em `data/` e são alterados por repositórios próprios, com gravação atômica. O estado da conversa (CPF autenticado, agente ativo, pedido pendente, respostas da entrevista) fica no grafo e fica só na memória do processo, sem gravação em disco. Ao encerrar a conversa (a pedido, por bloqueio, por falha de autenticação ou por inatividade), o estado é apagado da memória; reiniciar o serviço também encerra as conversas em andamento.
 
 Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 

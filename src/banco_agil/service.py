@@ -12,7 +12,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from banco_agil.config import Settings, get_settings
 from banco_agil.exchange import AwesomeApiProvider
-from banco_agil.graph.builder import build_graph
+from banco_agil.graph.builder import ENDED_REPLY, build_graph
 from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.guardrails.judge import ModelJudge
@@ -56,9 +56,10 @@ class ChatService:
         self._graph = graph
         self._callbacks = list(callbacks)
         self.idle_timeout = idle_timeout
+        self._ended: set[str] = set()
 
     def start(self, thread_id: str) -> None:
-        if self.history(thread_id):
+        if thread_id in self._ended or self.history(thread_id):
             return
         self._append(thread_id, GREETING, {})
 
@@ -68,7 +69,8 @@ class ChatService:
         self._append(
             thread_id, TIMEOUT_REPLY, {"phase": "ended", "pending_limit": None, "interview": {}}
         )
-        return Reply(TIMEOUT_REPLY, ended=self.is_ended(thread_id))
+        ended = self._erase_if_ended(thread_id)
+        return Reply(TIMEOUT_REPLY, ended=ended)
 
     def _append(self, thread_id: str, text: str, extra: dict[str, Any]) -> None:
         try:
@@ -87,6 +89,8 @@ class ChatService:
             )
 
     def send(self, thread_id: str, text: str) -> Reply:
+        if thread_id in self._ended:
+            return Reply(ENDED_REPLY, ended=True)
         config = self._config(thread_id)
         try:
             known = self._message_ids(config)
@@ -103,19 +107,45 @@ class ChatService:
                 error=type(exc).__name__,
             )
             self._rollback(config, known, thread_id)
-            return Reply(FRIENDLY_ERROR, ended=self.is_ended(thread_id), failed=True)
+            return Reply(FRIENDLY_ERROR, ended=self._erase_if_ended(thread_id), failed=True)
         replies = [
             str(m.content)
             for m in result["messages"]
             if isinstance(m, AIMessage) and m.id not in known
         ]
-        return Reply("\n\n".join(replies), ended=result.get("phase") == "ended")
+        ended = result.get("phase") == "ended"
+        if ended:
+            self._erase(thread_id)
+        return Reply("\n\n".join(replies), ended=ended)
 
     def is_ended(self, thread_id: str) -> bool:
+        if thread_id in self._ended:
+            return True
         try:
             return self._graph.get_state(self._config(thread_id)).values.get("phase") == "ended"
         except Exception:
             return False
+
+    def _erase_if_ended(self, thread_id: str) -> bool:
+        if not self.is_ended(thread_id):
+            return False
+        self._erase(thread_id)
+        return True
+
+    def _erase(self, thread_id: str) -> None:
+        self._ended.add(thread_id)
+        try:
+            checkpointer = self._graph.checkpointer
+            if checkpointer is not None and not isinstance(checkpointer, bool):
+                checkpointer.delete_thread(thread_id)
+        except Exception as exc:
+            log_event(
+                logger,
+                "state_erase_failed",
+                level=logging.ERROR,
+                thread=thread_id,
+                error=type(exc).__name__,
+            )
 
     def history(self, thread_id: str) -> list[tuple[str, str]]:
         try:

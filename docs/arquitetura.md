@@ -127,7 +127,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 
 | Decisão | Motivo |
 |---|---|
-| A conversa fica só na memória do processo | Nenhum dado pessoal da conversa é gravado em disco; reiniciar o serviço encerra as conversas e o cliente se autentica de novo |
+| A conversa fica só na memória do processo | Nenhum dado pessoal da conversa é gravado em disco, e o estado é apagado da memória quando a conversa termina; reiniciar o serviço encerra as conversas e o cliente se autentica de novo |
 | Conversa inativa por 5 minutos é encerrada (configurável, `0` desliga) | Evita deixar uma sessão autenticada aberta |
 | Os dados de teste são criados na primeira execução e a pasta `data/` não é versionada | Execução simples e sem risco de sobrescrever dados existentes |
 | Logs e traces mascaram o CPF e não registram o texto do cliente | Privacidade dos dados, inclusive em ferramentas de observabilidade |

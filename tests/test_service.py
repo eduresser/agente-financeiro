@@ -180,8 +180,39 @@ def test_idle_timeout_ends_an_authenticated_conversation_and_blocks_further_mess
     reply = service.close_for_timeout("t1")
     assert reply.ended and reply.text == TIMEOUT_REPLY
     assert service.is_ended("t1")
-    assert service.history("t1")[-1] == ("assistant", TIMEOUT_REPLY)
     again = service.send("t1", "ainda estou aqui")
     assert again.ended and "encerrada" in again.text
     assert service.close_for_timeout("t1").ended
-    assert [t for _, t in service.history("t1")].count(TIMEOUT_REPLY) == 1
+
+
+def stored_threads(service: ChatService) -> set[str]:
+    saver = service._graph.checkpointer
+    assert isinstance(saver, InMemorySaver)
+    return {cp.config["configurable"]["thread_id"] for cp in saver.list(None)}
+
+
+def test_ended_conversation_is_erased_from_memory_and_stays_closed(data_dir: Path) -> None:
+    service = make_service(data_dir, [])
+    service.start("t-end")
+    login(service, "t-end")
+    assert stored_threads(service) == {"t-end"}
+
+    service.close_for_timeout("t-end")
+
+    assert stored_threads(service) == set()
+    assert service.history("t-end") == []
+    assert service.is_ended("t-end")
+    service.start("t-end")
+    assert stored_threads(service) == set()
+    assert service.send("t-end", "ainda estou aqui").ended
+
+
+def test_locked_login_erases_the_conversation_and_keeps_other_threads(data_dir: Path) -> None:
+    service = make_service(data_dir, [])
+    service.start("t-other")
+    service.send("t-other", ANA)
+    for _ in range(3):
+        last = service.send("t-lock", f"{ANA} 01/01/1999")
+    assert last.ended is True
+    assert service.is_ended("t-lock")
+    assert stored_threads(service) == {"t-other"}
