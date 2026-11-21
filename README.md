@@ -94,7 +94,12 @@ uv run pytest -m llm    # cenários completos com o modelo real e avaliação po
 uv run pytest -m live   # contrato da API de câmbio real
 ```
 
-Cada cenário roda 3 vezes com dados novos. O estado final dos CSVs e o encerramento da conversa são verificados por código e exigem 3 de 3. Critérios de linguagem (português, sem citar agentes ou ferramentas, tom) são avaliados por um modelo juiz (`JUDGE_CHAT_MODEL`, ou o modelo do atendimento se vazio) com critérios binários e exigem 2 de 3. A cotação usa um provedor falso com valores conhecidos, para o juiz poder conferir o número; o teste `live` separado detecta mudanças no formato da API real. Optei por pytest simples, sem DeepEval, porque 7 cenários com critérios binários não justificam uma dependência nova.
+Cada cenário roda 3 vezes, cada uma com CSVs novos, porque o modelo pode responder de forma diferente a cada execução. Há dois níveis de aprovação:
+
+- **Verificações por código** (estado final dos CSVs e encerramento da conversa): devem passar nas 3 execuções.
+- **Critérios de linguagem** (português, sem citar agentes ou ferramentas, tom): avaliados por um modelo juiz (`JUDGE_CHAT_MODEL`, ou o modelo do atendimento se vazio) com critérios binários. Devem passar em pelo menos 2 das 3 execuções, pois o julgamento tem variação natural.
+
+A cotação usa um provedor falso com valores conhecidos, para o juiz poder conferir o número; o teste `live` separado detecta mudanças no formato da API real. Optou-se por pytest simples, sem DeepEval, porque 7 cenários com critérios binários não justificam uma dependência nova.
 
 ## Arquitetura
 
@@ -137,14 +142,14 @@ Detalhes de cada decisão estão em [docs/arquitetura.md](docs/arquitetura.md).
 - Entrevista conduzida pelo modelo, com ordem das perguntas e validação das respostas garantidas por código.
 - Cotação de moedas vinda de API externa, sempre com valor e horário da consulta.
 - Encerramento da conversa a qualquer momento.
-- Conversa preservada em SQLite: reiniciar o serviço não obriga a autenticar de novo.
 - Guardrails de entrada e de saída atrás de uma interface substituível.
 
 ## Desafios enfrentados
 
 ### Desafios técnicos
 
-- **Modelo não pode decidir quem é o cliente.** O CPF autenticado fica no estado do grafo e é injetado nas ferramentas por código. Nenhuma ferramenta recebe CPF como argumento.
+- **Autenticação por chat sem expor dados sensíveis ao modelo.** O cliente se autentica pela conversa, mas CPF e data de nascimento não podem ser tratados pelo modelo. Por isso, a coleta, a validação e a decisão de autenticar são feitas só por código, com frases pré-programadas e variadas (pedido do CPF, da data, formato inválido, nova tentativa), para que o diálogo soe natural mesmo sem modelo. O único uso do modelo nessa etapa é detectar o pedido de encerramento, e só em mensagens sem dígitos.
+- **Modelo não pode decidir quem é o cliente.** O CPF autenticado fica no estado do grafo e é injetado nas ferramentas por código. Nenhuma ferramenta recebe CPF como argumento, e as respostas das ferramentas não incluem o CPF.
 - **Conversa natural com regras rígidas.** A entrevista é livre na redação, mas só avança com uma pergunta por vez, na ordem, e só calcula o score com as cinco respostas válidas.
 - **Falhas não podem derrubar o atendimento.** Erros de modelo, de arquivo e de API viram mensagens claras ao cliente; o detalhe vai para o log, com CPF mascarado.
 - **Gravação segura de CSV.** Cada alteração escreve em arquivo temporário e renomeia, então uma falha no meio nunca corrompe a base.
