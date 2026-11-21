@@ -57,7 +57,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | Guardrails atrás da interface `Guardrail` | Permite trocar por um serviço gerenciado sem mexer nos agentes |
 | Modelo juiz só em caso de suspeita; falha do juiz bloqueia | Economiza chamadas e falha de forma segura |
 | Fachada `ChatService.send` como único ponto de entrada | Captura qualquer exceção e devolve resposta amigável |
-| Checkpointer em memória indexado pelo identificador da conversa | Mantém o estado entre turnos sem gravar a conversa em disco |
+| Checkpointer em memória indexado pelo identificador da conversa | Mantém o estado entre turnos sem gravar a conversa em disco; CPF e data são mascarados só na visão enviada ao modelo |
 | CPF validado pelos dígitos verificadores | Descarta erros de digitação antes de consultar a base |
 
 ## Decisões em pontos que o enunciado não define
@@ -127,7 +127,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 
 | Decisão | Motivo |
 |---|---|
-| A conversa fica só na memória do processo | Nenhum dado pessoal da conversa é gravado em disco, e o estado é apagado da memória quando a conversa termina; reiniciar o serviço encerra as conversas e o cliente se autentica de novo |
+| A conversa fica só na memória do processo, com o texto original, e é descartada ao iniciar uma nova conversa | Nenhum dado pessoal da conversa é gravado em disco, e a tela lê a mesma conversa que os agentes; reiniciar o serviço encerra as conversas e o cliente se autentica de novo |
 | Conversa inativa por 5 minutos é encerrada (configurável, `0` desliga) | Evita deixar uma sessão autenticada aberta |
 | Os dados de teste são criados na primeira execução e a pasta `data/` não é versionada | Execução simples e sem risco de sobrescrever dados existentes |
 | Logs e traces mascaram o CPF e não registram o texto do cliente | Privacidade dos dados, inclusive em ferramentas de observabilidade |
@@ -136,7 +136,7 @@ O enunciado deixa lacunas e ambiguidades. Cada decisão abaixo foi tomada de for
 
 - O CPF aparece mascarado (`***.456.789-**`) em logs, eventos de bloqueio e traces.
 - O texto livre digitado pelo cliente não é registrado em logs nem enviado a traces.
-- Uma mensagem bloqueada é trocada por um marcador no histórico depois de gerar a resposta fixa. O texto original nunca chega aos agentes e a tela continua mostrando o balão do cliente.
+- Uma mensagem bloqueada fica no histórico com uma marca, depois de gerar a resposta fixa. Ela nunca é enviada aos agentes nem ao juiz, e a tela continua mostrando o balão do cliente.
 - Respostas com CPF, score ou limite de outro cliente são trocadas por uma resposta segura.
 
 ## Estratégia de testes

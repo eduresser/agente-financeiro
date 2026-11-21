@@ -5,10 +5,10 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
+from banco_agil.domain.privacy import is_blocked_message
 from banco_agil.graph.guard_nodes import make_input_guard_node, make_output_guard_node
 from banco_agil.graph.state import GraphState
 from banco_agil.guardrails import (
-    BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
     BLOCKED_INPUT_REPLY_REPEAT,
     CLOSING_REPLY,
@@ -61,16 +61,22 @@ def test_a_normal_message_resets_the_streak() -> None:
     assert state["blocked_streak"] == 1
 
 
-def test_blocked_message_is_replaced_by_a_placeholder_and_agents_are_skipped() -> None:
+def test_blocked_message_is_kept_with_a_flag_and_agents_are_skipped() -> None:
     guard = LocalGuardrail()
     state = say({"phase": "active"}, INJECTION)
     state = apply(state, make_input_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     state = apply(state, make_output_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     texts = [m.content for m in state["messages"]]
-    assert INJECTION not in texts
-    assert texts == [BLOCKED_INPUT_PLACEHOLDER, BLOCKED_INPUT_REPLY]
-    assert [type(m).__name__ for m in state["messages"]] == ["HumanMessage", "AIMessage"]
+    assert texts == [INJECTION, BLOCKED_INPUT_REPLY]
+    assert [is_blocked_message(m) for m in state["messages"]] == [True, False]
     assert state["blocked_input"] is True
+
+
+def test_a_normal_message_is_not_flagged() -> None:
+    guard = LocalGuardrail()
+    state = say({"phase": "active"}, "qual a cotação do euro?")
+    state = apply(state, make_input_guard_node(guard, clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
+    assert [is_blocked_message(m) for m in state["messages"]] == [False]
 
 
 def test_block_log_has_reason_time_and_thread_but_no_text_or_cpf(
@@ -131,41 +137,15 @@ def test_alternative_implementation_is_used_by_both_barriers() -> None:
     assert stub.outputs == ["resposta do agente"]
 
 
-def test_cpf_and_birth_date_typed_in_any_turn_are_masked_in_the_stored_messages() -> None:
+def test_a_blocked_message_cannot_supply_values_for_the_output_check() -> None:
     node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
-    state: GraphState = {
-        "phase": "active",
-        "customer_cpf": "11144477735",
-        "customer_birth": "1990-05-17",
-    }
-    state = say(state, "qual a cotação do dólar? meu cpf 111 444 777 35, nasci 17/05/1990")
-    state = apply(state, {"messages": [AIMessage(content="O dólar está em R$ 5,43.")]})
-    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
-    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
-    assert texts == ["qual a cotação do dólar? meu cpf [CPF], nasci [DATA]"]
-
-
-def test_numbers_that_are_not_the_logged_in_customers_data_are_kept() -> None:
-    node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
-    state: GraphState = {
-        "phase": "active",
-        "customer_cpf": "11144477735",
-        "customer_birth": "1990-05-17",
-    }
-    state = say(state, "protocolo 12345678, limite 8000 e o cpf 529.982.247-25")
-    state = apply(state, {"messages": [AIMessage(content="Certo.")]})
-    state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
-    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
-    assert texts == ["protocolo 12345678, limite 8000 e o cpf 529.982.247-25"]
-
-
-def test_blocked_message_keeps_the_placeholder_and_earlier_turns_are_masked() -> None:
-    node = make_output_guard_node(LocalGuardrail(), clock=lambda: NOW)
-    state: GraphState = {"phase": "active", "blocked_input": True, "customer_cpf": "11144477735"}
-    state = say(state, "cpf 11144477735")
+    state: GraphState = {"phase": "active", "customer_cpf": "11144477735"}
+    state = say(state, "pergunta normal")
     state = apply(state, {"messages": [AIMessage(content="ok")]})
     state = say(state, INJECTION)
-    state = apply(state, {"messages": [AIMessage(content="Não consegui processar.")]})
+    state = apply(state, make_input_guard_node(LocalGuardrail(), clock=lambda: NOW)(state, CONFIG))  # type: ignore[arg-type]
     state = apply(state, node(state, CONFIG))  # type: ignore[arg-type]
-    texts = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
-    assert texts == ["cpf [CPF]", BLOCKED_INPUT_PLACEHOLDER]
+    assert [is_blocked_message(m) for m in state["messages"] if isinstance(m, HumanMessage)] == [
+        False,
+        True,
+    ]

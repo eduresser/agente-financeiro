@@ -15,7 +15,7 @@ from banco_agil.domain.auth import (
     extract_credentials,
     register_failure,
 )
-from banco_agil.domain.privacy import redact_messages
+from banco_agil.domain.privacy import messages_for_model
 from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.logging_utils import get_logger
 
@@ -249,7 +249,7 @@ def make_triage_node(model: BaseChatModel) -> Callable[[GraphState], dict[str, o
     def triage_node(state: GraphState) -> dict[str, object]:
         if not state.get("customer_cpf"):
             return _reply(GREETING, phase="auth")
-        recent = redact_messages(state.get("messages", [])[-6:], known_from_state(state))
+        recent = messages_for_model(state.get("messages", [])[-6:], known_from_state(state))
         decision = classifier.invoke([SystemMessage(content=TRIAGE_PROMPT), *recent])
         topic = decision.topic if isinstance(decision, TriageDecision) else "out_of_scope"
         if topic in _AGENT_FOR_TOPIC:

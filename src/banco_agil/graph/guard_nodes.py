@@ -5,10 +5,9 @@ from datetime import datetime
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from banco_agil.domain.privacy import redacted_human_messages
+from banco_agil.domain.privacy import BLOCKED_BY_GUARD, is_blocked_message
 from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.guardrails import (
-    BLOCKED_INPUT_PLACEHOLDER,
     BLOCKED_INPUT_REPLY,
     BLOCKED_INPUT_REPLY_REPEAT,
     CLOSING_REPLY,
@@ -60,18 +59,22 @@ def make_input_guard_node(
 
         _log_block("input", result.reason, thread_id, clock)
         streak = state.get("blocked_streak", 0) + 1
+        marked = HumanMessage(
+            content=last.content, id=last.id, additional_kwargs={BLOCKED_BY_GUARD: True}
+        )
         if streak >= MAX_BLOCKED_STREAK:
             return {
-                "messages": [AIMessage(content=CLOSING_REPLY)],
+                "messages": [marked, AIMessage(content=CLOSING_REPLY)],
                 "blocked_input": True,
                 "blocked_streak": streak,
                 "phase": "ended",
             }
         return {
             "messages": [
+                marked,
                 AIMessage(
                     content=BLOCKED_INPUT_REPLY if streak == 1 else BLOCKED_INPUT_REPLY_REPEAT
-                )
+                ),
             ],
             "blocked_input": True,
             "blocked_streak": streak,
@@ -88,14 +91,14 @@ def make_output_guard_node(
         user_text = "\n".join(
             m.content
             for m in state.get("messages", [])
-            if isinstance(m, HumanMessage) and isinstance(m.content, str)
+            if isinstance(m, HumanMessage)
+            and isinstance(m.content, str)
+            and not is_blocked_message(m)
         )
         context = GuardContext(state.get("customer_cpf"), thread_id, user_text)
         replaced: list[BaseMessage] = []
         for message in reversed(state.get("messages", [])):
             if isinstance(message, HumanMessage):
-                if state.get("blocked_input") and message.id:
-                    replaced.append(HumanMessage(content=BLOCKED_INPUT_PLACEHOLDER, id=message.id))
                 break
             if not isinstance(message, AIMessage) or not isinstance(message.content, str):
                 continue
@@ -103,12 +106,6 @@ def make_output_guard_node(
             if not result.allowed:
                 _log_block("output", result.reason, thread_id, clock)
                 replaced.append(AIMessage(content=SAFE_OUTPUT_REPLY, id=message.id))
-        already = {m.id for m in replaced}
-        replaced.extend(
-            m
-            for m in redacted_human_messages(state.get("messages", []), known_from_state(state))
-            if m.id not in already
-        )
         return {"messages": replaced} if replaced else {}
 
     return output_guard

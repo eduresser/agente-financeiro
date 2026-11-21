@@ -4,7 +4,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
-from banco_agil.domain.privacy import Known, redact_messages
+from banco_agil.domain.privacy import Known, messages_for_model
 from banco_agil.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +36,7 @@ def run_tool_loop(
     bound = model.bind_tools(list(tools))
     messages: list[AnyMessage] = [
         SystemMessage(content=system_prompt),
-        *redact_messages(history, known),
+        *messages_for_model(history, known),
     ]
     for _ in range(MAX_STEPS):
         reply = bound.invoke(messages)

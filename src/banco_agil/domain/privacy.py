@@ -14,6 +14,7 @@ from banco_agil.domain.auth import (
 
 CPF_PLACEHOLDER = "[CPF]"
 DATE_PLACEHOLDER = "[DATA]"
+BLOCKED_BY_GUARD = "blocked_by_guard"
 
 
 @dataclass(frozen=True)
@@ -57,24 +58,17 @@ def redact_sensitive(text: str, known: Known = Known()) -> str:  # noqa: B008
     return text
 
 
-def redact_messages(messages: Sequence[AnyMessage], known: Known = Known()) -> list[AnyMessage]:  # noqa: B008
-    redacted: list[AnyMessage] = []
+def is_blocked_message(message: AnyMessage) -> bool:
+    return bool(message.additional_kwargs.get(BLOCKED_BY_GUARD))
+
+
+def messages_for_model(messages: Sequence[AnyMessage], known: Known = Known()) -> list[AnyMessage]:  # noqa: B008
+    view: list[AnyMessage] = []
     for message in messages:
+        if is_blocked_message(message):
+            continue
         if isinstance(message, HumanMessage | AIMessage) and isinstance(message.content, str):
             clean = redact_sensitive(message.content, known)
             message = message.model_copy(update={"content": clean})
-        redacted.append(message)
-    return redacted
-
-
-def redacted_human_messages(messages: Sequence[AnyMessage], known: Known) -> list[HumanMessage]:
-    changed: list[HumanMessage] = []
-    for message in messages:
-        if not isinstance(message, HumanMessage) or not message.id:
-            continue
-        if not isinstance(message.content, str):
-            continue
-        clean = redact_sensitive(message.content, known)
-        if clean != message.content:
-            changed.append(HumanMessage(content=clean, id=message.id))
-    return changed
+        view.append(message)
+    return view
