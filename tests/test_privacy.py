@@ -18,7 +18,7 @@ from tests.fakes import ScriptedChatModel, ai
 
 CPF = "11144477735"
 BIRTH = date(1990, 5, 17)
-LOGGED_IN = Known(CPF, BIRTH, logged_in=True)
+LOGGED_IN = Known(BIRTH, logged_in=True)
 
 
 @pytest.mark.parametrize(
@@ -39,7 +39,7 @@ LOGGED_IN = Known(CPF, BIRTH, logged_in=True)
         ("111.444.777-35, 17/05/1990", "[CPF] [DATA]"),
     ],
 )
-def test_logged_in_customers_own_cpf_and_birth_date_are_masked_in_any_format(
+def test_cpf_and_the_customers_own_birth_date_are_masked_in_any_format(
     raw: str, expected: str
 ) -> None:
     assert redact_sensitive(raw, LOGGED_IN) == expected
@@ -48,7 +48,6 @@ def test_logged_in_customers_own_cpf_and_birth_date_are_masked_in_any_format(
 @pytest.mark.parametrize(
     "text",
     [
-        "529.982.247-25",
         "12345678900",
         "02/11/1985",
         "20000101",
@@ -59,18 +58,23 @@ def test_logged_in_customers_own_cpf_and_birth_date_are_masked_in_any_format(
         "cotação do dólar hoje",
     ],
 )
-def test_other_numbers_are_never_masked_for_a_logged_in_customer(text: str) -> None:
+def test_invalid_cpfs_other_dates_and_ordinary_numbers_are_never_masked(text: str) -> None:
     assert redact_sensitive(text, LOGGED_IN) == text
 
 
-def test_only_the_known_value_is_masked_inside_a_message_with_other_numbers() -> None:
-    text = "meu cpf 111.444.777-35, protocolo 12345678, outro cpf 529.982.247-25"
-    assert redact_sensitive(text, LOGGED_IN) == (
-        "meu cpf [CPF], protocolo 12345678, outro cpf 529.982.247-25"
+@pytest.mark.parametrize("known", [LOGGED_IN, Known()], ids=["logged_in", "before_login"])
+def test_any_valid_cpf_is_masked_not_only_the_customers_own(known: Known) -> None:
+    text = "meu cpf 111.444.777-35, protocolo 12345678, outro cpf 529.982.247-25 e 168.995.350-09"
+    assert redact_sensitive(text, known) == (
+        "meu cpf [CPF], protocolo 12345678, outro cpf [CPF] e [CPF]"
     )
 
 
-def test_before_login_only_what_the_login_would_accept_as_credentials_is_masked() -> None:
+def test_a_cpf_with_wrong_check_digits_is_left_alone() -> None:
+    assert redact_sensitive("cpf 123.456.789-00", LOGGED_IN) == "cpf 123.456.789-00"
+
+
+def test_before_login_a_birth_date_is_masked_only_when_the_login_accepts_it() -> None:
     logged_out = Known()
     assert redact_sensitive("cpf 111.444.777-35 nasci 17/05/1990", logged_out) == (
         "cpf [CPF] nasci [DATA]"
@@ -78,19 +82,18 @@ def test_before_login_only_what_the_login_would_accept_as_credentials_is_masked(
     assert redact_sensitive("protocolo 12345678 e valor 8000", logged_out) == (
         "protocolo 12345678 e valor 8000"
     )
-    assert redact_sensitive("cpf 12345678900", logged_out) == "cpf 12345678900"
 
 
-def test_candidates_kept_by_the_login_are_masked_while_it_is_in_progress() -> None:
-    known = Known(CPF, None, logged_in=False)
-    assert redact_sensitive("é o 11144477735 mesmo", known) == "é o [CPF] mesmo"
+def test_the_candidate_birth_date_is_masked_while_the_login_is_in_progress() -> None:
+    known = Known(BIRTH, logged_in=False)
+    assert redact_sensitive("é 17/05/1990 mesmo", known) == "é [DATA] mesmo"
 
 
 def test_known_values_come_from_the_graph_state() -> None:
     logged: GraphState = {"customer_cpf": CPF, "customer_birth": "1990-05-17"}
     assert known_from_state(logged) == LOGGED_IN
     trying: GraphState = {"cpf_candidate": CPF, "birth_candidate": "1990-05-17"}
-    assert known_from_state(trying) == Known(CPF, BIRTH, logged_in=False)
+    assert known_from_state(trying) == Known(BIRTH, logged_in=False)
     assert known_from_state({}) == Known()
 
 

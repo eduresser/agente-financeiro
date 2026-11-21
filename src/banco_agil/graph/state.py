@@ -34,7 +34,6 @@ def _parse_date(value: str | None) -> date | None:
 
 
 def known_from_state(state: GraphState) -> Known:
-    cpf = state.get("customer_cpf")
-    if cpf:
-        return Known(cpf, _parse_date(state.get("customer_birth")), logged_in=True)
-    return Known(state.get("cpf_candidate"), _parse_date(state.get("birth_candidate")))
+    if state.get("customer_cpf"):
+        return Known(_parse_date(state.get("customer_birth")), logged_in=True)
+    return Known(_parse_date(state.get("birth_candidate")))

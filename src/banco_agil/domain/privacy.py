@@ -11,6 +11,7 @@ from banco_agil.domain.auth import (
     extract_credentials,
     split_joined,
 )
+from banco_agil.domain.cpf import is_valid_cpf
 
 CPF_PLACEHOLDER = "[CPF]"
 DATE_PLACEHOLDER = "[DATA]"
@@ -19,25 +20,21 @@ BLOCKED_BY_GUARD = "blocked_by_guard"
 
 @dataclass(frozen=True)
 class Known:
-    cpf: str | None = None
     birth: date | None = None
     logged_in: bool = False
 
 
-def _sensitive_values(text: str, known: Known) -> tuple[set[str], set[date]]:
-    cpfs = {known.cpf} if known.cpf else set()
+def _birth_dates(text: str, known: Known) -> set[date]:
     births = {known.birth} if known.birth else set()
     if not known.logged_in:
         found = extract_credentials(text)
-        if found.cpf:
-            cpfs.add(found.cpf)
         if found.birth:
             births.add(found.birth)
-    return cpfs, births
+    return births
 
 
-def _placeholder_for(piece: str, cpfs: set[str], births: set[date]) -> str | None:
-    if piece in cpfs:
+def _placeholder_for(piece: str, births: set[date]) -> str | None:
+    if is_valid_cpf(piece):
         return CPF_PLACEHOLDER
     if len(piece) == BIRTH_DIGITS and any(d in births for d in calendar_dates(piece)):
         return DATE_PLACEHOLDER
@@ -45,12 +42,10 @@ def _placeholder_for(piece: str, cpfs: set[str], births: set[date]) -> str | Non
 
 
 def redact_sensitive(text: str, known: Known = Known()) -> str:  # noqa: B008
-    cpfs, births = _sensitive_values(text, known)
-    if not cpfs and not births:
-        return text
+    births = _birth_dates(text, known)
     for group in reversed(digit_spans(text)):
         pieces = split_joined(group.digits)
-        marks = [_placeholder_for(piece, cpfs, births) for piece in pieces]
+        marks = [_placeholder_for(piece, births) for piece in pieces]
         if not any(marks):
             continue
         replacement = " ".join(mark or piece for mark, piece in zip(marks, pieces, strict=True))
