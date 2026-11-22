@@ -190,9 +190,9 @@ def test_trace_redaction_hides_customer_text_and_masks_cpf() -> None:
     }
     redacted = redact(payload)
     assert redacted["messages"][0].content == REDACTED
-    assert redacted["messages"][1].content == "CPF ***.444.777-** ok"
+    assert redacted["messages"][1].content == "CPF [CPF] ok"
     assert redacted["raw"][0]["content"] == REDACTED
-    assert redacted["raw"][1]["content"] == "CPF ***.444.777-**"
+    assert redacted["raw"][1]["content"] == "CPF [CPF]"
 
 
 def test_start_seeds_the_greeting_once_and_the_first_message_is_not_greeted_again(

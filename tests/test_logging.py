@@ -2,20 +2,20 @@ import logging
 
 import pytest
 
-from banco_agil.logging_utils import get_logger, log_event, mask_cpf
+from banco_agil.logging_utils import get_logger, log_event
+
+VALID_CPF = "529.982.247-25"
 
 
-@pytest.mark.parametrize("raw", ["123.456.789-00", "12345678900"])
-def test_mask_cpf_keeps_only_middle_digits(raw: str) -> None:
-    assert mask_cpf(raw) == "***.456.789-**"
-
-
-def test_logged_cpf_never_appears_in_full(caplog: pytest.LogCaptureFixture) -> None:
+def test_logged_cpf_never_appears(caplog: pytest.LogCaptureFixture) -> None:
     logger = get_logger("banco_agil.test")
     with caplog.at_level(logging.INFO, logger="banco_agil.test"):
         log_event(logger, "auth_failed", cpf="123.456.789-00", attempt=2)
-        logger.warning("lookup for %s failed", "12345678900")
+        log_event(logger, "lookup", detail=f"cpf {VALID_CPF}")
+        logger.warning("lookup for %s failed", "52998224725")
     text = caplog.text
-    assert "***.456.789-**" in text
-    assert "12345678900" not in text
-    assert "123.456.789-00" not in text
+    assert "auth_failed cpf=[CPF] attempt=2" in text
+    assert "lookup detail=cpf [CPF]" in text
+    assert "lookup for [CPF] failed" in text
+    for leaked in ("123.456.789-00", VALID_CPF, "52998224725", "982"):
+        assert leaked not in text

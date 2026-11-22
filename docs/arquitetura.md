@@ -31,7 +31,7 @@ Um único grafo LangGraph com estado compartilhado atende toda a conversa. O cli
 | Pasta | Responsabilidade |
 |---|---|
 | `config.py`, `llm.py` | Configuração por variáveis de ambiente e fábrica do modelo |
-| `logging_utils.py`, `observability.py` | Mascaramento de CPF em logs e traces |
+| `logging_utils.py`, `observability.py` | Mascaramento de CPF e data de nascimento em logs e traces (reusa `domain/privacy.py`) |
 | `domain/` | Regras puras: CPF, autenticação, regras de crédito e score |
 | `storage/` | Repositórios CSV com gravação atômica |
 | `seed/` | Criação dos dados sintéticos quando os arquivos não existem |
