@@ -1,5 +1,4 @@
 import re
-import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,6 +15,7 @@ DEFAULT_CURRENCY = "USD"
 DEFAULT_TARGET = "BRL"
 EXAMPLE_CURRENCIES = ["USD", "EUR", "GBP"]
 TIMEOUT_SECONDS = 5.0
+CODE_PATTERN = re.compile(r"[A-Za-z]{3}")
 
 
 class ExchangeError(Exception):
@@ -43,23 +43,6 @@ class Quote:
 
 class ExchangeRateProvider(Protocol):
     def get_rate(self, currency: str | None, target: str | None = None) -> Quote: ...
-
-
-def _fold(text: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", text.strip().lower())
-    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-
-
-def _singulars(word: str) -> set[str]:
-    variants = {word, word[:-1], word[:-2]}
-    if word.endswith("ais"):
-        variants.add(word[:-3] + "al")
-    return variants
-
-
-def _name_matches(wanted: str, name: str) -> bool:
-    name_words = set(_fold(name).split())
-    return all(_singulars(word) & name_words for word in wanted.split())
 
 
 class AwesomeApiProvider:
@@ -110,28 +93,10 @@ class AwesomeApiProvider:
     def _resolve(self, currency: str | None, default: str) -> str:
         if currency is None or not currency.strip():
             return default
-        if re.fullmatch(r"[A-Za-z]{3}", currency.strip()):
-            return currency.strip().upper()
-        available = self._available()
-        wanted = _fold(currency)
-        matches = {
-            code for code, name in self._names(available).items() if _name_matches(wanted, name)
-        }
-        common = matches & set(EXAMPLE_CURRENCIES)
-        if len(matches) == 1:
-            return matches.pop()
-        if len(common) == 1:
-            return common.pop()
-        raise UnknownCurrency(self._examples(available))
-
-    def _names(self, available: dict[str, str]) -> dict[str, str]:
-        names: dict[str, str] = {}
-        for pair, label in available.items():
-            codes = pair.split("-")
-            labels = label.split("/")
-            if len(codes) == len(labels) == 2:
-                names.update(zip(codes, labels, strict=True))
-        return names
+        code = currency.strip()
+        if CODE_PATTERN.fullmatch(code):
+            return code.upper()
+        raise UnknownCurrency(self._examples())
 
     def _available(self) -> dict[str, str]:
         payload = self._get("/json/available")
@@ -139,9 +104,9 @@ class AwesomeApiProvider:
             raise ProviderUnavailable("invalid currency list")
         return {str(key): str(value) for key, value in payload.items()}
 
-    def _examples(self, available: dict[str, str] | None = None) -> list[str]:
+    def _examples(self) -> list[str]:
         try:
-            pairs = available if available is not None else self._available()
+            pairs = self._available()
         except ProviderUnavailable:
             return EXAMPLE_CURRENCIES
         codes = {pair.split("-")[0] for pair in pairs if pair.endswith("-BRL")}

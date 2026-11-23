@@ -50,8 +50,8 @@ def standard_handler(request: httpx.Request) -> httpx.Response:
     return httpx.Response(404, json={"status": 404, "code": "CoinNotExists"})
 
 
-@pytest.mark.parametrize("asked", ["euro", "EUR", "Euro"])
-def test_currency_by_name_or_code_returns_the_same_quote(asked: str) -> None:
+@pytest.mark.parametrize("asked", ["EUR", "eur", " Eur "])
+def test_currency_code_is_case_and_space_insensitive(asked: str) -> None:
     quote = provider(standard_handler).get_rate(asked)
     assert (quote.code, quote.rate) == ("EUR", Decimal("6.01"))
 
@@ -63,13 +63,12 @@ def test_quote_carries_exact_api_value_currency_and_query_time() -> None:
     assert quote.queried_at == NOW
 
 
-def test_missing_currency_defaults_to_dollar_and_dollar_name_is_not_ambiguous() -> None:
+def test_missing_currency_defaults_to_dollar() -> None:
     assert provider(standard_handler).get_rate(None).code == "USD"
-    assert provider(standard_handler).get_rate("dólar").code == "USD"
 
 
-@pytest.mark.parametrize("asked", ["florim", "bitcoin"])
-def test_unknown_currency_lists_available_examples(asked: str) -> None:
+@pytest.mark.parametrize("asked", ["florim", "bitcoin", "dólar"])
+def test_unknown_currency_or_name_lists_available_examples(asked: str) -> None:
     with pytest.raises(UnknownCurrency) as exc:
         provider(standard_handler).get_rate(asked)
     assert exc.value.examples == ["USD", "EUR", "GBP"]
@@ -122,7 +121,7 @@ def quote_pair(code: str, target: str, bid: str, name: str) -> dict[str, Any]:
 
 
 def test_target_currency_uses_the_direct_pair_when_the_api_has_it() -> None:
-    quote = provider(cross_handler).get_rate("euro", "USD")
+    quote = provider(cross_handler).get_rate("EUR", "USD")
     assert (quote.code, quote.target, quote.rate, quote.name) == (
         "EUR",
         "USD",
@@ -139,26 +138,7 @@ def test_target_currency_falls_back_to_a_cross_rate_through_brl() -> None:
     assert calls == ["/json/last/EUR-USD", "/json/last/EUR-BRL", "/json/last/USD-BRL"]
 
 
-def test_target_given_by_name_is_resolved_and_unknown_target_is_reported() -> None:
-    assert provider(cross_handler).get_rate("EUR", "dólar").target == "USD"
+def test_target_code_is_normalized_and_unknown_target_is_reported() -> None:
+    assert provider(cross_handler).get_rate("EUR", "usd").target == "USD"
     with pytest.raises(UnknownCurrency):
         provider(brl_pairs_only).get_rate("EUR", "XYZ")
-
-
-@pytest.mark.parametrize(
-    ("asked", "code"),
-    [("libra esterlina", "GBP"), ("dólar canadense", "CAD"), ("libra", "GBP"), ("dólares", "USD")],
-)
-def test_multi_word_plural_and_common_names_resolve_to_one_currency(asked: str, code: str) -> None:
-    def any_brl(request: httpx.Request) -> httpx.Response:
-        path = request.url.path
-        if path == "/json/available":
-            return httpx.Response(200, json=AVAILABLE)
-        found = path.rsplit("/", 1)[1].split("-")[0]
-        return httpx.Response(200, json=quote_body(found, "3.00", f"{found}/Real Brasileiro"))
-
-    assert provider(any_brl).get_rate(asked).code == code
-
-
-def test_plural_reais_is_accepted_as_target() -> None:
-    assert provider(brl_pairs_only).get_rate("EUR", "reais").target == "BRL"

@@ -50,8 +50,8 @@ def test_agent_feeds_exact_api_value_and_query_time_to_the_answer() -> None:
 
 def test_requested_currency_is_passed_through_untouched() -> None:
     provider = FakeProvider(Quote("EUR", "Euro", Decimal("6.01"), NOW))
-    run_agent(provider, {"currency": "euro"})
-    assert provider.asked == ["euro"]
+    run_agent(provider, {"currency": "EUR"})
+    assert provider.asked == ["EUR"]
 
 
 def test_unknown_currency_and_outage_never_produce_a_value() -> None:
@@ -76,8 +76,8 @@ def test_non_brl_target_is_passed_and_shown_in_its_own_currency() -> None:
 
     provider.get_rate = spy  # type: ignore[method-assign]
     [tool] = build_exchange_tools(provider)[:1]
-    text = tool.invoke({"currency": "euro", "target_currency": "dólar"})
-    assert asked == [("euro", "dólar")]
+    text = tool.invoke({"currency": "EUR", "target_currency": "USD"})
+    assert asked == [("EUR", "USD")]
     assert "1,1000 USD" in text
     assert "R$" not in text
 

@@ -14,7 +14,7 @@ def test_real_api_still_answers_in_the_expected_format() -> None:
     provider = AwesomeApiProvider(DEFAULT_URL)
 
     dollar = provider.get_rate("USD")
-    euro = provider.get_rate("euro")
+    euro = provider.get_rate("EUR")
 
     assert dollar.code == "USD" and dollar.rate > Decimal(0) and dollar.name
     assert euro.code == "EUR" and euro.rate > Decimal(0)
