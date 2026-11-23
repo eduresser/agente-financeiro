@@ -1,11 +1,10 @@
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.credit_rules import parse_amount
 from banco_agil.domain.scoring import (
     Employment,
     InterviewAnswers,
@@ -23,7 +22,7 @@ logger = get_logger(__name__)
 FIELDS = ["monthly_income", "employment", "fixed_expenses", "dependents", "has_debts"]
 
 TOPICS = {
-    "monthly_income": ("the customer's monthly income in reais", "5000 or 5 mil"),
+    "monthly_income": ("the customer's monthly income in reais", "5000"),
     "employment": ("the employment type: formal, autônomo or desempregado", "formal"),
     "fixed_expenses": ("the monthly fixed expenses in reais", "2000"),
     "dependents": ("the number of dependents", "2, or 0 for none"),
@@ -42,8 +41,11 @@ HELP_AFTER_FAILURES = 2
 
 def _validate(field: str, text: str) -> object | None:
     if field in {"monthly_income", "fixed_expenses"}:
-        amount = parse_amount(text)
-        return str(amount) if amount is not None and amount >= 0 else None
+        try:
+            amount = Decimal(text.strip())
+        except InvalidOperation:
+            return None
+        return str(amount) if amount.is_finite() and amount >= 0 else None
     if field == "employment":
         employment = parse_employment(text)
         return employment.name if employment is not None else None

@@ -8,7 +8,7 @@ from typing import Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.credit_rules import format_brl, is_approved, parse_amount
+from banco_agil.domain.money import format_brl
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.storage import (
     CustomerRepository,
@@ -66,9 +66,9 @@ class CreditService:
             return UNAVAILABLE
         return f"O limite de crédito atual é {format_brl(customer.credit_limit)}."
 
-    def request_increase(self, cpf: str, requested: Decimal | str) -> LimitDecision:
-        amount = parse_amount(requested) if isinstance(requested, str) else requested
-        if amount is None or amount <= 0:
+    def request_increase(self, cpf: str, requested: Decimal) -> LimitDecision:
+        amount = requested
+        if not amount.is_finite() or amount <= 0:
             return LimitDecision(
                 "invalid",
                 "Informe o novo limite desejado como um valor numérico, por exemplo 8000.",
@@ -86,7 +86,7 @@ class CreditService:
                     customer.credit_limit,
                 )
             ceiling = self._bands.max_limit_for(customer.score)
-            approved = is_approved(amount, ceiling)
+            approved = amount <= ceiling
             self._requests.append(
                 LimitRequest(
                     cpf,
@@ -128,7 +128,7 @@ def build_credit_tools(
         """Return the authenticated customer's current credit limit."""
         return service.current_limit(cpf)
 
-    def request_limit_increase(new_limit: str) -> str:
+    def request_limit_increase(new_limit: Decimal) -> str:
         """Request a credit limit increase to new_limit (amount in reais)."""
         decision = service.request_increase(cpf, new_limit)
         if on_decision is not None:

@@ -2,7 +2,7 @@ import logging
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.credit_rules import format_brl
+from banco_agil.domain.money import format_brl
 from banco_agil.exchange import (
     ExchangeRateProvider,
     ProviderUnavailable,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from banco_agil.domain.credit_rules import format_brl, parse_amount
+from banco_agil.domain.money import format_brl
 from banco_agil.seed import bootstrap
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
 from banco_agil.tools.credit_tools import UNAVAILABLE, CreditService, build_credit_tools
@@ -49,7 +49,7 @@ def test_limit_query_shows_the_authenticated_customers_limit_only(data_dir: Path
 
 
 def test_approved_increase_is_recorded_and_applied(data_dir: Path) -> None:
-    decision = make_service(data_dir).request_increase(ANA, "9.000,00")
+    decision = make_service(data_dir).request_increase(ANA, Decimal("9000"))
     assert decision.status == "approved"
     assert requests_rows(data_dir) == [
         {
@@ -64,7 +64,7 @@ def test_approved_increase_is_recorded_and_applied(data_dir: Path) -> None:
 
 
 def test_rejected_increase_keeps_limit_and_stores_the_request(data_dir: Path) -> None:
-    decision = make_service(data_dir).request_increase(BRUNO, "30000")
+    decision = make_service(data_dir).request_increase(BRUNO, Decimal("30000"))
     assert decision.status == "rejected"
     rows = LimitRequestRepository(data_dir / "solicitacoes_aumento_limite.csv").list_for(BRUNO)
     assert [r["status_pedido"] for r in rows] == ["rejeitado"]
@@ -72,9 +72,9 @@ def test_rejected_increase_keeps_limit_and_stores_the_request(data_dir: Path) ->
     assert CustomerRepository(data_dir / "clientes.csv").get(BRUNO).credit_limit == Decimal("1000")  # type: ignore[union-attr]
 
 
-@pytest.mark.parametrize("value", ["abc", "", "-100", "0"])
+@pytest.mark.parametrize("value", ["-100", "0", "NaN", "Infinity"])
 def test_invalid_value_creates_no_request(data_dir: Path, value: str) -> None:
-    decision = make_service(data_dir).request_increase(ANA, value)
+    decision = make_service(data_dir).request_increase(ANA, Decimal(value))
     assert decision.status == "invalid"
     assert requests_rows(data_dir) == []
 
@@ -83,7 +83,7 @@ def test_invalid_value_creates_no_request(data_dir: Path, value: str) -> None:
 def test_value_equal_or_below_current_is_refused_without_a_request_or_change(
     data_dir: Path, value: str
 ) -> None:
-    decision = make_service(data_dir).request_increase(ANA, value)
+    decision = make_service(data_dir).request_increase(ANA, Decimal(value))
     assert decision.status == "invalid"
     assert "R$ 5.000,00" in decision.message
     assert requests_rows(data_dir) == []
@@ -91,7 +91,7 @@ def test_value_equal_or_below_current_is_refused_without_a_request_or_change(
 
 
 def test_rejection_tells_the_ceiling_of_the_current_score(data_dir: Path) -> None:
-    decision = make_service(data_dir).request_increase(BRUNO, "30000")
+    decision = make_service(data_dir).request_increase(BRUNO, Decimal("30000"))
     assert decision.status == "rejected"
     assert decision.ceiling == Decimal("1000.00")
     assert "R$ 1.000,00" in decision.message
@@ -130,7 +130,7 @@ def test_missing_base_gives_unavailability_message_and_logs(
 ) -> None:
     (data_dir / name).unlink()
     service = make_service(data_dir)
-    assert service.request_increase(ANA, "9000").status == "unavailable"
+    assert service.request_increase(ANA, Decimal("9000")).status == "unavailable"
     if name == "clientes.csv":
         assert service.current_limit(ANA) == UNAVAILABLE
     assert caplog.text
@@ -150,18 +150,5 @@ def test_tools_never_accept_a_cpf_and_only_touch_the_bound_customer(data_dir: Pa
     assert [i for i, (a, b) in enumerate(zip(before, after, strict=True)) if a != b] == [1]
 
 
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [("8 mil", "8000"), ("R$ 2,5 mil", "2500"), ("40k", "40000"), ("1,5 milhão", "1500000")],
-)
-def test_amounts_written_with_a_magnitude_word_are_scaled(text: str, expected: str) -> None:
-    assert parse_amount(text) == Decimal(expected)
-
-
-def test_amount_parsing_and_formatting() -> None:
-    assert parse_amount("R$ 7.000,50") == Decimal("7000.50")
-    assert parse_amount("7000") == Decimal("7000")
-    assert parse_amount("7.000") == Decimal("7000")
-    assert parse_amount("sete mil") is None
-    assert parse_amount("-100") == Decimal("-100")
+def test_brl_formatting() -> None:
     assert format_brl(Decimal("1234567.5")) == "R$ 1.234.567,50"

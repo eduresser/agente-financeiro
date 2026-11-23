@@ -5,7 +5,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.credit_rules import format_brl
+from banco_agil.domain.money import format_brl
 from banco_agil.graph.agent_loop import run_tool_loop
 from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.graph.style import STYLE_GUIDE

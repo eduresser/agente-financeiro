@@ -157,9 +157,9 @@ def test_agent_conducts_interview_through_tools_and_hands_back_to_credit(
 def test_natural_answers_are_stored_as_clean_values(customers_path: Path) -> None:
     session = session_for(customers_path)
     for field, text in [
-        ("monthly_income", "uns 8 mil por mês"),
+        ("monthly_income", "8000"),
         ("employment", "CLT, carteira assinada"),
-        ("fixed_expenses", "R$ 2.000"),
+        ("fixed_expenses", "2000"),
         ("dependents", "1 filho"),
         ("has_debts", "não tenho"),
     ]:
