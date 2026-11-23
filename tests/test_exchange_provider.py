@@ -142,3 +142,13 @@ def test_target_code_is_normalized_and_unknown_target_is_reported() -> None:
     assert provider(cross_handler).get_rate("EUR", "usd").target == "USD"
     with pytest.raises(UnknownCurrency):
         provider(brl_pairs_only).get_rate("EUR", "XYZ")
+
+
+def test_default_clock_reports_brasilia_time_three_hours_behind_utc() -> None:
+    from datetime import UTC, datetime
+
+    from banco_agil.clock import now_brasilia
+
+    utc_now = datetime.now(UTC).replace(tzinfo=None)
+    offset = utc_now - now_brasilia()
+    assert abs(offset.total_seconds() - 3 * 3600) < 5

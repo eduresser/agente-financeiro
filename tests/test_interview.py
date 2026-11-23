@@ -26,10 +26,10 @@ def session_for(path: Path) -> InterviewSession:
 def answer_all(session: InterviewSession) -> None:
     for field, text in [
         ("monthly_income", "5000"),
-        ("employment", "Formal"),
+        ("employment", "FORMAL"),
         ("fixed_expenses", "2000"),
         ("dependents", "0"),
-        ("has_debts", "não"),
+        ("has_debts", "false"),
     ]:
         assert session.record_answer(field, text)["ok"] is True
 
@@ -39,10 +39,10 @@ def test_questions_come_one_at_a_time_in_fixed_order(customers_path: Path) -> No
     asked = []
     for field, text in [
         ("monthly_income", "5000"),
-        ("employment", "formal"),
+        ("employment", "FORMAL"),
         ("fixed_expenses", "2000"),
         ("dependents", "1"),
-        ("has_debts", "sim"),
+        ("has_debts", "true"),
     ]:
         asked.append(session.next_pending_field()["field"])
         session.record_answer(field, text)
@@ -61,7 +61,7 @@ def test_score_calculation_is_blocked_until_five_valid_answers(customers_path: P
     before = customers_path.read_text(encoding="utf-8")
     session = session_for(customers_path)
     session.record_answer("monthly_income", "5000")
-    session.record_answer("employment", "formal")
+    session.record_answer("employment", "FORMAL")
     result = session.finish()
     assert result["ok"] is False
     assert not session.finished
@@ -74,8 +74,12 @@ def test_score_calculation_is_blocked_until_five_valid_answers(customers_path: P
         ("monthly_income", "-100"),
         ("monthly_income", "muito"),
         ("employment", "astronauta"),
+        ("employment", "CLT"),
         ("dependents", "1.5"),
+        ("dependents", "21"),
+        ("dependents", "dois"),
         ("has_debts", "talvez"),
+        ("has_debts", "não"),
     ],
 )
 def test_invalid_answer_is_rejected_and_not_stored(
@@ -84,7 +88,7 @@ def test_invalid_answer_is_rejected_and_not_stored(
     session = session_for(customers_path)
     for earlier, text in [
         ("monthly_income", "5000"),
-        ("employment", "formal"),
+        ("employment", "FORMAL"),
         ("fixed_expenses", "1"),
         ("dependents", "1"),
     ]:
@@ -118,10 +122,10 @@ def test_agent_conducts_interview_through_tools_and_hands_back_to_credit(
 ) -> None:
     steps = [
         ("monthly_income", "5000"),
-        ("employment", "formal"),
+        ("employment", "FORMAL"),
         ("fixed_expenses", "2000"),
         ("dependents", "0"),
-        ("has_debts", "não"),
+        ("has_debts", "false"),
     ]
     script: list[AIMessage | Exception] = []
     state = {
@@ -154,14 +158,14 @@ def test_agent_conducts_interview_through_tools_and_hands_back_to_credit(
     assert json.dumps(final["interview"])
 
 
-def test_natural_answers_are_stored_as_clean_values(customers_path: Path) -> None:
+def test_canonical_answers_are_stored_as_clean_values(customers_path: Path) -> None:
     session = session_for(customers_path)
     for field, text in [
         ("monthly_income", "8000"),
-        ("employment", "CLT, carteira assinada"),
+        ("employment", "formal"),
         ("fixed_expenses", "2000"),
-        ("dependents", "1 filho"),
-        ("has_debts", "não tenho"),
+        ("dependents", "1"),
+        ("has_debts", "False"),
     ]:
         assert session.record_answer(field, text)["ok"] is True, field
     assert session.answers == {

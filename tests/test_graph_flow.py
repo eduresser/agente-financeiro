@@ -180,7 +180,7 @@ def test_blocked_message_reaches_no_agent_and_is_flagged_in_the_history(
 def test_rejected_request_then_interview_then_automatic_reanalysis(data_dir: Path) -> None:
     answers = [
         ("monthly_income", "5000"),
-        ("employment", "formal"),
+        ("employment", "FORMAL"),
         ("fixed_expenses", "2000"),
         ("dependents", "0"),
     ]
@@ -201,7 +201,7 @@ def test_rejected_request_then_interview_then_automatic_reanalysis(data_dir: Pat
     for (field, value), question in zip(answers, questions, strict=True):
         script += [ai_tool_call("record_answer", {"field": field, "answer": value}), ai(question)]
     script += [
-        ai_tool_call("record_answer", {"field": "has_debts", "answer": "não"}),
+        ai_tool_call("record_answer", {"field": "has_debts", "answer": "false"}),
         ai_tool_call("finish_interview", {}),
     ]
     harness = Harness(data_dir, script)

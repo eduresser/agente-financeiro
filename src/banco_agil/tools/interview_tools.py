@@ -5,14 +5,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from banco_agil.domain.scoring import (
-    Employment,
-    InterviewAnswers,
-    compute_score,
-    parse_dependents,
-    parse_employment,
-    parse_yes_no,
-)
+from banco_agil.domain.scoring import MAX_DEPENDENTS, Employment, InterviewAnswers, compute_score
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.storage import CustomerRepository, StorageError
 from banco_agil.tools.credit_tools import UNAVAILABLE
@@ -23,18 +16,18 @@ FIELDS = ["monthly_income", "employment", "fixed_expenses", "dependents", "has_d
 
 TOPICS = {
     "monthly_income": ("the customer's monthly income in reais", "5000"),
-    "employment": ("the employment type: formal, autônomo or desempregado", "formal"),
+    "employment": ("the employment type", "FORMAL"),
     "fixed_expenses": ("the monthly fixed expenses in reais", "2000"),
     "dependents": ("the number of dependents", "2, or 0 for none"),
-    "has_debts": ("whether the customer has active debts (yes or no)", "sim or não"),
+    "has_debts": ("whether the customer has active debts", "true or false"),
 }
 
 FORMAT_HELP = {
     "monthly_income": "A number equal to or greater than zero.",
-    "employment": "formal, autônomo or desempregado (CLT, servidor, MEI and similar work).",
+    "employment": "FORMAL (CLT, servidor), SELF_EMPLOYED (autônomo, MEI) or UNEMPLOYED.",
     "fixed_expenses": "A number equal to or greater than zero.",
-    "dependents": "A whole number equal to or greater than zero.",
-    "has_debts": "A yes or no.",
+    "dependents": f"A whole number from 0 to {MAX_DEPENDENTS}.",
+    "has_debts": "true or false.",
 }
 HELP_AFTER_FAILURES = 2
 
@@ -47,11 +40,12 @@ def _validate(field: str, text: str) -> object | None:
             return None
         return str(amount) if amount.is_finite() and amount >= 0 else None
     if field == "employment":
-        employment = parse_employment(text)
-        return employment.name if employment is not None else None
+        return text.strip().upper() if text.strip().upper() in Employment.__members__ else None
     if field == "dependents":
-        return parse_dependents(text)
-    return parse_yes_no(text)
+        digits = text.strip()
+        valid = digits.isascii() and digits.isdecimal() and int(digits) <= MAX_DEPENDENTS
+        return int(digits) if valid else None
+    return {"true": True, "false": False}.get(text.strip().lower())
 
 
 class InterviewSession:

@@ -8,6 +8,7 @@ from typing import Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 
+from banco_agil.clock import now_brasilia
 from banco_agil.domain.money import format_brl
 from banco_agil.logging_utils import get_logger, log_event
 from banco_agil.storage import (
@@ -49,7 +50,7 @@ class CreditService:
         customers: CustomerRepository,
         bands: ScoreLimitRepository,
         requests: LimitRequestRepository,
-        clock: Callable[[], datetime] = datetime.now,
+        clock: Callable[[], datetime] = now_brasilia,
     ) -> None:
         self._customers = customers
         self._bands = bands

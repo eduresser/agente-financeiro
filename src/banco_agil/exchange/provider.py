@@ -7,6 +7,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from banco_agil.clock import now_brasilia
 from banco_agil.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -50,7 +51,7 @@ class AwesomeApiProvider:
         self,
         base_url: str,
         client: httpx.Client | None = None,
-        clock: Callable[[], datetime] = datetime.now,
+        clock: Callable[[], datetime] = now_brasilia,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=TIMEOUT_SECONDS)
