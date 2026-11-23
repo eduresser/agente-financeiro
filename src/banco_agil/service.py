@@ -2,7 +2,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
@@ -11,14 +11,16 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from banco_agil.config import Settings, get_settings
+from banco_agil.domain.privacy import Known
 from banco_agil.exchange import AwesomeApiProvider
 from banco_agil.graph.builder import build_graph
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
 from banco_agil.guardrails.judge import ModelJudge
 from banco_agil.llm import build_chat_model, build_judge_model
 from banco_agil.logging_utils import get_logger, log_event
-from banco_agil.observability import build_callbacks
+from banco_agil.observability import build_callbacks, known_in_turn
 from banco_agil.seed import bootstrap
 from banco_agil.storage import (
     CustomerRepository,
@@ -93,7 +95,8 @@ class ChatService:
         except Exception:
             known = set()
         try:
-            result = self._graph.invoke({"messages": [HumanMessage(content=text)]}, config)
+            with known_in_turn(self._known_for_trace(config)):
+                result = self._graph.invoke({"messages": [HumanMessage(content=text)]}, config)
         except Exception as exc:
             log_event(
                 logger,
@@ -148,6 +151,12 @@ class ChatService:
             "callbacks": self._callbacks,
             "metadata": {"langfuse_session_id": thread_id},
         }
+
+    def _known_for_trace(self, config: RunnableConfig) -> Known:
+        try:
+            return known_from_state(cast("GraphState", self._graph.get_state(config).values))
+        except Exception:
+            return Known()
 
     def _message_ids(self, config: RunnableConfig) -> set[str | None]:
         values = self._graph.get_state(config).values

@@ -1,34 +1,48 @@
-from typing import Any
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, cast
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage
 
 from banco_agil.config import Settings
-from banco_agil.domain.privacy import redact_sensitive
+from banco_agil.domain.privacy import Known, redact_sensitive
+from banco_agil.graph.state import GraphState, known_from_state
 from banco_agil.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
-REDACTED = "[redacted]"
-_CUSTOMER_ROLES = {"human", "user"}
+_known_in_turn: ContextVar[Known] = ContextVar("known_in_turn", default=Known())  # noqa: B039
+_STATE_KEYS = {"customer_cpf", "birth_candidate"}
+
+
+@contextmanager
+def known_in_turn(known: Known) -> Iterator[None]:
+    token = _known_in_turn.set(known)
+    try:
+        yield
+    finally:
+        _known_in_turn.reset(token)
 
 
 def redact(data: Any) -> Any:  # noqa: ANN401
-    if isinstance(data, HumanMessage):
-        return HumanMessage(content=REDACTED, id=data.id)
+    return _redact(data, _known_in_turn.get())
+
+
+def _redact(data: Any, known: Known) -> Any:  # noqa: ANN401
     if isinstance(data, BaseMessage):
-        content = (
-            redact_sensitive(data.content) if isinstance(data.content, str) else data.content
-        )
-        return data.model_copy(update={"content": content})
+        if not isinstance(data.content, str):
+            return data
+        return data.model_copy(update={"content": redact_sensitive(data.content, known)})
     if isinstance(data, dict):
-        if data.get("type") in _CUSTOMER_ROLES or data.get("role") in _CUSTOMER_ROLES:
-            return {**data, "content": REDACTED}
-        return {key: redact(item) for key, item in data.items()}
+        if _STATE_KEYS & data.keys():
+            known = known_from_state(cast("GraphState", data))
+        return {key: _redact(item, known) for key, item in data.items()}
     if isinstance(data, list | tuple):
-        return [redact(item) for item in data]
+        return [_redact(item, known) for item in data]
     if isinstance(data, str):
-        return redact_sensitive(data)
+        return redact_sensitive(data, known)
     return data
 
 

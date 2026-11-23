@@ -12,7 +12,7 @@ from banco_agil.exchange import Quote
 from banco_agil.graph.builder import build_graph
 from banco_agil.graph.triage import GREETING
 from banco_agil.guardrails import LocalGuardrail, other_customers_patterns
-from banco_agil.observability import REDACTED, build_callbacks, redact
+from banco_agil.observability import build_callbacks, redact
 from banco_agil.seed import bootstrap
 from banco_agil.service import FRIENDLY_ERROR, TIMEOUT_REPLY, ChatService
 from banco_agil.storage import CustomerRepository, LimitRequestRepository, ScoreLimitRepository
@@ -175,24 +175,31 @@ def test_observability_is_off_without_keys_and_conversation_still_works(
     assert "observability" not in caplog.text.lower()
 
 
-def test_trace_redaction_hides_customer_text_and_masks_cpf() -> None:
+def test_trace_redaction_masks_like_the_model_view_including_customer_messages() -> None:
+    from datetime import date
+
     from langchain_core.messages import AIMessage, HumanMessage
+
+    from banco_agil.domain.privacy import Known
+    from banco_agil.observability import known_in_turn
 
     payload = {
         "messages": [
-            HumanMessage(content="meu cpf é 111.444.777-35"),
+            HumanMessage(content="meu cpf é 111.444.777-35 e quero ver o limite"),
             AIMessage(content="CPF 11144477735 ok"),
         ],
-        "raw": [
-            {"role": "user", "content": "senha 123"},
-            {"role": "assistant", "content": "CPF 111.444.777-35"},
-        ],
+        "raw": [{"role": "user", "content": "nasci 17/05/1990"}],
     }
-    redacted = redact(data=payload)
-    assert redacted["messages"][0].content == REDACTED
+    with known_in_turn(Known(date(1990, 5, 17), logged_in=True)):
+        redacted = redact(payload)
+    assert redacted["messages"][0].content == "meu cpf é [CPF] e quero ver o limite"
     assert redacted["messages"][1].content == "CPF [CPF] ok"
-    assert redacted["raw"][0]["content"] == REDACTED
-    assert redacted["raw"][1]["content"] == "CPF [CPF]"
+    assert redacted["raw"][0]["content"] == "nasci [DATA]"
+
+
+def test_trace_redaction_uses_the_state_found_in_the_payload() -> None:
+    state = {"customer_cpf": "11144477735", "customer_birth": "1990-05-17", "text": "é 17/05/1990"}
+    assert redact(state)["text"] == "é [DATA]"
 
 
 def test_start_seeds_the_greeting_once_and_the_first_message_is_not_greeted_again(
