@@ -30,6 +30,20 @@ TOPBAR_CSS = """
 }
 </style>
 """
+FOCUS_INPUT_JS = """
+(() => {
+    let tries = 0;
+    const timer = setInterval(() => {
+        const input = document.querySelector('[data-testid="stChatInputTextArea"]');
+        if (input && !input.disabled) {
+            input.focus();
+            clearInterval(timer);
+        } else if (++tries > 40) {
+            clearInterval(timer);
+        }
+    }, 50);
+})();
+"""
 CAPTION = "Atendimento digital · ambiente de demonstração"
 SCENARIOS = [
     ("Aumento aprovado", "Ana: peça limite de R$ 10.000 (score 650)"),
@@ -76,7 +90,7 @@ def start_new_conversation() -> None:
     if previous:
         get_service().discard(previous)
     st.session_state.thread_id = new_thread_id()
-    for key in ("last_activity", "pending_message", "failure"):
+    for key in ("last_activity", "pending_message", "failure", "refocus_input"):
         st.session_state.pop(key, None)
 
 
@@ -168,7 +182,11 @@ def render(service: ChatService) -> None:
                 st.session_state.failure = (pending, reply.text)
             st.session_state.last_activity = time.monotonic()
         st.session_state.pending_message = None
+        st.session_state.refocus_input = True
         st.rerun()
+
+    if st.session_state.pop("refocus_input", False) and not ended:
+        st.html(f"<script>{FOCUS_INPUT_JS}</script>", unsafe_allow_javascript=True, width="content")
 
     if not ended and service.idle_timeout > 0:
         watch_idle(service, thread_id)

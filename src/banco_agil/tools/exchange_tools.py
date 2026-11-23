@@ -45,8 +45,8 @@ def describe_rate(
 
 def build_exchange_tools(provider: ExchangeRateProvider) -> list[BaseTool]:
     def get_exchange_rate(currency: str | None = None, target_currency: str | None = None) -> str:
-        """Get the current rate of a currency (default dollar) given by name or code, in the
-        target currency (default reais)."""
+        """Get the current rate of a currency (default dollar) given by its 3-letter ISO code,
+        e.g. USD or EUR, in the target currency (default reais, BRL)."""
         return describe_rate(provider, currency, target_currency)
 
     return [StructuredTool.from_function(get_exchange_rate)]

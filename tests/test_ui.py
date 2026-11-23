@@ -124,6 +124,18 @@ def test_input_is_disabled_while_the_reply_is_being_processed(
     assert app.session_state["pending_message"] is None
 
 
+def test_input_gets_its_focus_back_once_after_the_reply(monkeypatch: pytest.MonkeyPatch) -> None:
+    use(monkeypatch, EchoService())
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    assert not app.get("html")
+
+    app.chat_input[0].set_value("quero meu limite").run()
+    assert "stChatInputTextArea" in app.get("html")[0].proto.body
+
+    app.run()
+    assert not app.get("html")
+
+
 def test_a_failed_turn_keeps_the_typed_message_and_shows_the_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
