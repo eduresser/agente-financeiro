@@ -13,23 +13,23 @@ REDACTED = "[redacted]"
 _CUSTOMER_ROLES = {"human", "user"}
 
 
-def redact(value: Any) -> Any:  # noqa: ANN401
-    if isinstance(value, HumanMessage):
-        return HumanMessage(content=REDACTED, id=value.id)
-    if isinstance(value, BaseMessage):
+def redact(data: Any) -> Any:  # noqa: ANN401
+    if isinstance(data, HumanMessage):
+        return HumanMessage(content=REDACTED, id=data.id)
+    if isinstance(data, BaseMessage):
         content = (
-            redact_sensitive(value.content) if isinstance(value.content, str) else value.content
+            redact_sensitive(data.content) if isinstance(data.content, str) else data.content
         )
-        return value.model_copy(update={"content": content})
-    if isinstance(value, dict):
-        if value.get("type") in _CUSTOMER_ROLES or value.get("role") in _CUSTOMER_ROLES:
-            return {**value, "content": REDACTED}
-        return {key: redact(item) for key, item in value.items()}
-    if isinstance(value, list | tuple):
-        return [redact(item) for item in value]
-    if isinstance(value, str):
-        return redact_sensitive(value)
-    return value
+        return data.model_copy(update={"content": content})
+    if isinstance(data, dict):
+        if data.get("type") in _CUSTOMER_ROLES or data.get("role") in _CUSTOMER_ROLES:
+            return {**data, "content": REDACTED}
+        return {key: redact(item) for key, item in data.items()}
+    if isinstance(data, list | tuple):
+        return [redact(item) for item in data]
+    if isinstance(data, str):
+        return redact_sensitive(data)
+    return data
 
 
 def build_callbacks(settings: Settings) -> list[BaseCallbackHandler]:
